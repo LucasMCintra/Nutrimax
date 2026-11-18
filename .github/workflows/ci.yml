@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+        python-version: [3.9, 3.10]
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_nutrimax
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dependencies
+          path: ./
+
+      - name: Install Node dependencies
+        run: |
+          cd frontend &&
+          npm ci
+
+      - name: Install Python dependencies
+        run: |
+          cd backend &&
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run backend tests
+        run: |
+          cd backend &&
+          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_nutrimax"
+          pytest app/tests/ -v
+
+      - name: Build frontend
+        run: |
+          cd frontend &&
+          npm run build
+
+      - name: Upload artifacts for deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            frontend/build/
+            backend/app/
+            "**/coverage.xml"
+            "**/test-results.json"
