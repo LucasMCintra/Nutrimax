@@ -35,7 +35,7 @@ class GoalBase(BaseModel):
 
 
 class GoalCreate(GoalBase):
-    client_id: int
+    client_id: Optional[int] = None
 
 
 class GoalRead(GoalBase):
@@ -50,7 +50,7 @@ class DietBase(BaseModel):
 
 
 class DietCreate(DietBase):
-    client_id: int
+    client_id: Optional[int] = None
 
 
 class DietRead(DietBase):
@@ -61,17 +61,17 @@ class DietRead(DietBase):
 
 
 class MealBase(BaseModel):
-    client_id: int
     meal_date: date
     image_url: Optional[str] = None
 
 
 class MealCreate(MealBase):
-    pass
+    client_id: Optional[int] = None
 
 
 class MealRead(MealBase):
     id: int
+    client_id: int
 
     model_config = ConfigDict(from_attributes=True)
 

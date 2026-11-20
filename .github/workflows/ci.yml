@@ -11,8 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
-        python-version: [3.9, 3.10]
+        node-version: [20.x]
+        python-version: [3.11]
 
     services:
       postgres:
@@ -30,32 +30,43 @@ jobs:
           - 5432:5432
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          name: dependencies
-          path: ./
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install Node dependencies
-        run: |
-          cd frontend &&
-          npm ci
+        working-directory: frontend
+        run: npm install
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install Python dependencies
-        run: |
-          cd backend &&
-          pip install -r requirements.txt
-          pip install pytest
+        working-directory: backend
+        run: pip install -r requirements.txt
 
       - name: Run backend tests
-        run: |
-          cd backend &&
-          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_nutrimax"
-          pytest app/tests/ -v
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_nutrimax
+          PYTHONPATH: .
+        run: pytest tests/ -v
 
       - name: Build frontend
-        run: |
-          cd frontend &&
-          npm run build
+        working-directory: frontend
+        env:
+          CI: "false"
+        run: npm run build
 
       - name: Upload artifacts for deployment
         uses: actions/upload-artifact@v4

@@ -21,6 +21,9 @@ class Client(Base):
     goal: Mapped["Goal | None"] = relationship(
         back_populates="client", uselist=False, cascade="all, delete-orphan"
     )
+    diet: Mapped["Diet | None"] = relationship(
+        back_populates="client", uselist=False, cascade="all, delete-orphan"
+    )
     meals: Mapped[list["Meal"]] = relationship(
         back_populates="client", cascade="all, delete-orphan"
     )
@@ -42,6 +45,8 @@ class Diet(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    client: Mapped[Client] = relationship(back_populates="diet")
 
 
 class Meal(Base):
