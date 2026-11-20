@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app import crud
+from app.api.auth import get_current_user
 from app.db import get_db
 from app.schemas import (
     ClientCreate,
@@ -18,7 +19,11 @@ from app.schemas import (
     MealRead,
 )
 
-router = APIRouter(prefix="/clients", tags=["Clients"])
+router = APIRouter(
+    prefix="/clients",
+    tags=["Clients"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.post("", response_model=ClientRead, status_code=status.HTTP_201_CREATED)
