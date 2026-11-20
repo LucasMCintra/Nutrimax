@@ -26,11 +26,18 @@ def test_create_and_get_client(client) -> None:
 def test_list_clients(client) -> None:
     headers = auth_headers(client)
     client.post("/api/v1/clients", json={"name": "Um"}, headers=headers)
-    client.post("/api/v1/clients", json={"name": "Dois"}, headers=headers)
 
     response = client.get("/api/v1/clients", headers=headers)
     assert response.status_code == 200
-    assert len(response.json()) == 2
+    assert len(response.json()) == 1
+
+
+def test_user_can_only_create_one_client_profile(client) -> None:
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Um"}, headers=headers)
+
+    response = client.post("/api/v1/clients", json={"name": "Dois"}, headers=headers)
+    assert response.status_code == 409
 
 
 def test_update_client(client) -> None:
@@ -129,3 +136,25 @@ def test_create_meal_invalid_client(client) -> None:
 def test_client_endpoints_require_authentication(client) -> None:
     response = client.get("/api/v1/clients")
     assert response.status_code == 401
+
+
+def test_users_cannot_access_each_others_clients(client) -> None:
+    owner_headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Privado"}, headers=owner_headers)
+
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "other@example.com", "password": "StrongPassword123"},
+    )
+    token = client.post(
+        "/api/v1/auth/login",
+        data={"username": "other@example.com", "password": "StrongPassword123"},
+    ).json()["access_token"]
+    other_headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.get("/api/v1/clients/1", headers=other_headers)
+    assert response.status_code == 404
+
+    response = client.get("/api/v1/clients", headers=other_headers)
+    assert response.status_code == 200
+    assert response.json() == []
