@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.db import Base, get_db
 from app.main import app
-from app.models import Client, User  # noqa: F401  (ensure models register on metadata)
+from app.models import Client, NutritionTarget, User  # noqa: F401  (ensure models register on metadata)
 
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
