@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.auth import router as auth_router
 from app.api.client import router as client_router
 
 
@@ -11,4 +12,5 @@ def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+router.include_router(auth_router)
 router.include_router(client_router)
