@@ -98,3 +98,18 @@ class ClientWithRelations(ClientRead):
     diet: Optional[DietRead] = None
     nutrition_target: Optional[NutritionTargetRead] = None
     meals: list[MealRead] = []
+
+
+class ProgressPoint(BaseModel):
+    date: date
+    calories: float
+    protein: float
+    carbohydrates: float
+    fat: float
+
+
+class ProgressResponse(BaseModel):
+    start_date: date
+    end_date: date
+    target: Optional[NutritionTargetRead] = None
+    points: list[ProgressPoint]

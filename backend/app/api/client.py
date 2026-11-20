@@ -127,6 +127,19 @@ def create_diet(
     return diet
 
 
+@router.get("/{client_id}/meals", response_model=list[MealRead])
+def list_meals(
+    client_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[MealRead]:
+    require_client(client_id, current_user, db)
+    meals = crud.get_meals_by_client(db, client_id, current_user.id)
+    return meals[skip : skip + limit]
+
+
 @router.post("/{client_id}/meal", response_model=MealRead, status_code=status.HTTP_201_CREATED)
 def create_meal(
     client_id: int,
