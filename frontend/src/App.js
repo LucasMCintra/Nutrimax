@@ -56,6 +56,10 @@ function App() {
   const [showMealForm, setShowMealForm] = useState(false);
 
   const themeLabel = dark ? "Ativar modo claro" : "Ativar modo escuro";
+  const todayLabel = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(new Date()).replace(".", "");
+  const weekdayLabel = new Intl.DateTimeFormat("pt-BR", { weekday: "long" }).format(new Date()).toUpperCase();
+  const profileName = client?.name?.split(" ")[0] || user?.email?.split("@")[0] || "você";
+  const profileInitials = profileName.slice(0, 2).toUpperCase();
   const liveNutrition = summary?.day ? [
     { key: "calories", label: "Calorias", value: summary.day.calories, target: summary.target?.calories || 2000, unit: "kcal", color: "coral", icon: "◒" },
     { key: "protein", label: "Proteínas", value: summary.day.protein, target: summary.target?.protein || 150, unit: "g", color: "blue", icon: "◆" },
@@ -69,12 +73,21 @@ function App() {
   })) || week;
   const goalTitle = client?.goal?.description || "Acompanhar meu progresso";
   const goalProgress = summary?.target?.calories ? Math.min(Math.round((summary.day.calories / summary.target.calories) * 100), 100) : 0;
-  const profileName = client?.name?.split(" ")[0] || user?.email?.split("@")[0] || "você";
 
   const toggleTheme = () => {
     const next = !dark;
     setDark(next);
     window.localStorage.setItem("nutrimax-theme", next ? "dark" : "light");
+  };
+
+  const handleLogout = () => {
+    clearToken();
+    setToken(null);
+    setUser(null);
+    setClient(null);
+    setSummary(null);
+    setProgress(null);
+    setMeals([]);
   };
 
   const handleMealSubmit = async (data) => {
@@ -169,9 +182,9 @@ function App() {
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark">N</span><span>Nutrimax</span></div>
         <div className="profile-card">
-          <div className="avatar">LM</div>
+          <div className="avatar">{profileInitials}</div>
           <div><strong>Olá, {profileName}</strong><span>Meta em andamento</span></div>
-          <button className="icon-button" aria-label="Abrir menu do perfil">⌄</button>
+          <button className="icon-button" onClick={handleLogout} aria-label="Sair da conta">↪</button>
         </div>
         <nav aria-label="Navegação principal">
           {["Visão geral", "Refeições", "Progresso", "Meu plano"].map((item, index) => (
@@ -189,11 +202,11 @@ function App() {
       <main className="main-content">
         <header className="topbar">
           <div className="breadcrumb"><span>Dashboard</span><b>/</b><strong>{activeNav}</strong></div>
-          <div className="top-actions"><button className="date-button">Hoje, 20 de nov <span>⌄</span></button><button className="notification" aria-label="Notificações"><span>♢</span><i /></button><div className="top-avatar">LM</div></div>
+          <div className="top-actions"><button className="date-button">Hoje, {todayLabel} <span>⌄</span></button><button className="notification" aria-label="Notificações"><span>♢</span><i /></button><div className="top-avatar">{profileInitials}</div></div>
         </header>
 
         <section className="welcome" data-enter>
-          <div><p className="eyebrow">SEXTA-FEIRA, 20 DE NOVEMBRO</p><h1>Seu dia, em equilíbrio.</h1><p className="intro">Acompanhe seu progresso, {profileName}.</p>{error && <p className="inline-error" role="status">{error}</p>}</div>
+          <div><p className="eyebrow">{weekdayLabel}, {todayLabel.toUpperCase()}</p><h1>Seu dia, em equilíbrio.</h1><p className="intro">Acompanhe seu progresso, {profileName}.</p>{error && <p className="inline-error" role="status">{error}</p>}</div>
           <button className="primary-button" onClick={() => setShowMealForm(true)} disabled={!client}>+ Registrar refeição</button>
         </section>
 
@@ -219,7 +232,7 @@ function App() {
           <aside className="insight-card"><div className="insight-header"><span className="spark">✦</span><span className="section-kicker">INSIGHT DO DIA</span></div><h2>Pequenos passos fazem grandes mudanças.</h2><p>Você já atingiu {liveNutrition[1] ? Math.min(Math.round((liveNutrition[1].value / liveNutrition[1].target) * 100), 100) : 0}% da sua meta de proteína. Continue registrando suas refeições para manter o equilíbrio.</p><button className="secondary-button" onClick={() => setShowMealForm(true)} disabled={!client}>Registrar agora <span>→</span></button><div className="insight-art" aria-hidden="true"><span>✦</span><span>•</span><span>✦</span></div></aside>
         </section>
 
-        <footer><span>© 2026 Nutrimax</span><span>Feito para uma rotina mais leve.</span></footer>
+        <footer><span>© {new Date().getFullYear()} Nutrimax</span><span>Feito para uma rotina mais leve.</span></footer>
       </main>
       {showOnboarding && <OnboardingForm onSubmit={handleOnboardingSubmit} onClose={() => setShowOnboarding(false)} />}
       {showMealForm && <MealForm onSubmit={handleMealSubmit} onClose={() => setShowMealForm(false)} />}
