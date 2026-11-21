@@ -74,3 +74,19 @@ export function createClient(token, payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function createGoal(token, clientId, description) {
+  return request(`/clients/${clientId}/goal`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ description }),
+  });
+}
+
+export function setNutritionTarget(token, payload) {
+  return request("/dashboard/target", {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}

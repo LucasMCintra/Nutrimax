@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   createClient,
+  createGoal,
   createMeal,
   getClient,
   getClientFull,
@@ -8,6 +9,7 @@ import {
   getDashboardSummary,
   getMeals,
   getProgress,
+  setNutritionTarget,
 } from "./api";
 import { clearToken, getToken } from "./auth";
 import Login from "./Login";
@@ -379,7 +381,11 @@ function App() {
   };
 
   const handleOnboardingSubmit = async (data) => {
-    await createClient(token, data);
+    const createdClient = await createClient(token, data.client);
+    await Promise.all([
+      createGoal(token, createdClient.id, data.goal),
+      setNutritionTarget(token, data.target),
+    ]);
     const currentUser = await getCurrentUser(token);
     const today = new Date().toISOString().slice(0, 10);
     const start = new Date();
