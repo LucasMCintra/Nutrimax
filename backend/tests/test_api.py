@@ -79,6 +79,23 @@ def test_create_goal_for_client(client) -> None:
     assert response.json()["client_id"] == 1
 
 
+def test_update_goal_for_client(client) -> None:
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Plano editável"}, headers=headers)
+
+    response = client.put(
+        "/api/v1/clients/1/goal",
+        json={"description": "Ganhar massa muscular"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["description"] == "Ganhar massa muscular"
+    assert response.json()["client_id"] == 1
+
+    response = client.get("/api/v1/clients/1/full", headers=headers)
+    assert response.json()["goal"]["description"] == "Ganhar massa muscular"
+
+
 def test_create_diet_for_client(client) -> None:
     headers = auth_headers(client)
     client.post("/api/v1/clients", json={"name": "Com Dieta"}, headers=headers)

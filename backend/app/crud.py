@@ -70,6 +70,21 @@ def create_goal(db: Session, goal: GoalCreate, user_id: int) -> Goal | None:
     return db_goal
 
 
+def update_goal(db: Session, client_id: int, description: str, user_id: int) -> Goal | None:
+    db_client = get_client(db, client_id, user_id)
+    if db_client is None:
+        return None
+    db_goal = db_client.goal
+    if db_goal is None:
+        db_goal = Goal(client_id=client_id, description=description)
+        db.add(db_goal)
+    else:
+        db_goal.description = description
+    db.commit()
+    db.refresh(db_goal)
+    return db_goal
+
+
 def create_diet(db: Session, diet: DietCreate, user_id: int) -> Diet | None:
     if get_client(db, diet.client_id, user_id) is None:
         return None

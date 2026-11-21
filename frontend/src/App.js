@@ -10,11 +10,14 @@ import {
   getMeals,
   getProgress,
   setNutritionTarget,
+  updateClient,
+  updateGoal,
 } from "./api";
 import { clearToken, getToken } from "./auth";
 import Login from "./Login";
 import OnboardingForm from "./OnboardingForm";
 import MealForm from "./MealForm";
+import PlanForm from "./PlanForm";
 import "./App.css";
 
 const nutrition = [
@@ -264,7 +267,7 @@ function ProgressView({ points, nutritionItems }) {
   );
 }
 
-function PlanView({ goalTitle, nutritionItems, hasTarget, onAddMeal }) {
+function PlanView({ goalTitle, nutritionItems, hasTarget, onAddMeal, onEditPlan }) {
   return (
     <section className="page-view plan-view" aria-labelledby="plan-title" data-enter>
       <div className="page-view-header">
@@ -273,7 +276,7 @@ function PlanView({ goalTitle, nutritionItems, hasTarget, onAddMeal }) {
           <h1 id="plan-title">Meu plano</h1>
           <p className="intro">Seu objetivo e suas referências nutricionais em um só lugar.</p>
         </div>
-        <button className="primary-button" type="button" onClick={onAddMeal}>+ Registrar refeição</button>
+        <div className="page-view-actions"><button className="secondary-button" type="button" onClick={onEditPlan}>Editar plano</button><button className="primary-button" type="button" onClick={onAddMeal}>+ Registrar refeição</button></div>
       </div>
       <div className="plan-grid">
         <article className="plan-card plan-card-featured">
@@ -317,6 +320,7 @@ function App() {
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showPlanForm, setShowPlanForm] = useState(false);
   const [showMealForm, setShowMealForm] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -380,6 +384,21 @@ function App() {
     setShowMealForm(false);
   };
 
+  const refreshClientData = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const start = new Date();
+    start.setDate(start.getDate() - 6);
+    const startDate = start.toISOString().slice(0, 10);
+    const [dashboard, progressData, clientDetails] = await Promise.all([
+      getDashboardSummary(token, today),
+      getProgress(token, startDate, today),
+      getClientFull(token, client.id),
+    ]);
+    setSummary(dashboard);
+    setProgress(progressData);
+    setClient(clientDetails);
+  };
+
   const handleOnboardingSubmit = async (data) => {
     const createdClient = await createClient(token, data.client);
     await Promise.all([
@@ -407,6 +426,16 @@ function App() {
     setProgress(progressData);
     setMeals(clientMeals);
     setShowOnboarding(false);
+  };
+
+  const handlePlanSubmit = async (data) => {
+    await Promise.all([
+      updateClient(token, client.id, data.client),
+      updateGoal(token, client.id, data.goal),
+      setNutritionTarget(token, data.target),
+    ]);
+    await refreshClientData();
+    setShowPlanForm(false);
   };
 
   useEffect(() => {
@@ -480,7 +509,7 @@ function App() {
     }
 
     if (activeNav === "Meu plano") {
-      return <PlanView goalTitle={goalTitle} nutritionItems={liveNutrition} hasTarget={Boolean(summary?.target)} onAddMeal={() => setShowMealForm(true)} />;
+      return <PlanView goalTitle={goalTitle} nutritionItems={liveNutrition} hasTarget={Boolean(summary?.target)} onAddMeal={() => setShowMealForm(true)} onEditPlan={() => setShowPlanForm(true)} />;
     }
 
     return (
@@ -597,6 +626,7 @@ function App() {
         <footer><span>© {new Date().getFullYear()} Nutrimax</span><span>Feito para uma rotina mais leve.</span></footer>
       </main>
       {showOnboarding && <OnboardingForm onSubmit={handleOnboardingSubmit} onClose={() => setShowOnboarding(false)} />}
+      {showPlanForm && <PlanForm client={client} nutritionItems={liveNutrition} onSubmit={handlePlanSubmit} onClose={() => setShowPlanForm(false)} />}
       {showMealForm && <MealForm onSubmit={handleMealSubmit} onClose={() => setShowMealForm(false)} />}
     </div>
   );

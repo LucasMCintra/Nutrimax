@@ -83,6 +83,22 @@ export function createGoal(token, clientId, description) {
   });
 }
 
+export function updateClient(token, clientId, payload) {
+  return request(`/clients/${clientId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateGoal(token, clientId, description) {
+  return request(`/clients/${clientId}/goal`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ description }),
+  });
+}
+
 export function setNutritionTarget(token, payload) {
   return request("/dashboard/target", {
     method: "PUT",

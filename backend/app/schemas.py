@@ -37,6 +37,10 @@ class GoalCreate(GoalBase):
     client_id: Optional[int] = None
 
 
+class GoalUpdate(GoalBase):
+    pass
+
+
 class GoalRead(GoalBase):
     id: int
     client_id: int

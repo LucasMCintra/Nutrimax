@@ -16,6 +16,7 @@ from app.schemas import (
     DietRead,
     GoalCreate,
     GoalRead,
+    GoalUpdate,
     MealCreate,
     MealRead,
 )
@@ -107,6 +108,19 @@ def create_goal(
     payload_data = payload.model_dump()
     payload_data["client_id"] = client_id
     goal = crud.create_goal(db, GoalCreate(**payload_data), current_user.id)
+    if goal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
+    return goal
+
+
+@router.put("/{client_id}/goal", response_model=GoalRead)
+def update_goal(
+    client_id: int,
+    payload: GoalUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    goal = crud.update_goal(db, client_id, payload.description, current_user.id)
     if goal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
     return goal
