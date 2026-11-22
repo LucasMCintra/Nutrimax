@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Client, Diet, Goal, Meal, User
-from app.schemas import ClientCreate, ClientUpdate, DietCreate, GoalCreate, MealCreate
+from app.schemas import ClientCreate, ClientUpdate, DietCreate, GoalCreate, MealCreate, MealUpdate
 
 
 def get_client(db: Session, client_id: int, user_id: int | None = None) -> Client | None:
@@ -103,6 +103,40 @@ def create_meal(db: Session, meal: MealCreate, user_id: int) -> Meal | None:
     db.commit()
     db.refresh(db_meal)
     return db_meal
+
+
+def get_meal(db: Session, client_id: int, meal_id: int, user_id: int) -> Meal | None:
+    return db.execute(
+        select(Meal)
+        .join(Client)
+        .where(
+            Meal.id == meal_id,
+            Meal.client_id == client_id,
+            Client.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+
+
+def update_meal(
+    db: Session, client_id: int, meal_id: int, meal: MealUpdate, user_id: int
+) -> Meal | None:
+    db_meal = get_meal(db, client_id, meal_id, user_id)
+    if db_meal is None:
+        return None
+    for field, value in meal.model_dump(exclude={"client_id"}).items():
+        setattr(db_meal, field, value)
+    db.commit()
+    db.refresh(db_meal)
+    return db_meal
+
+
+def delete_meal(db: Session, client_id: int, meal_id: int, user_id: int) -> bool:
+    db_meal = get_meal(db, client_id, meal_id, user_id)
+    if db_meal is None:
+        return False
+    db.delete(db_meal)
+    db.commit()
+    return True
 
 
 def get_meals_by_client(db: Session, client_id: int, user_id: int) -> list[Meal]:

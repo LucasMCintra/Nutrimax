@@ -91,6 +91,10 @@ class MealCreate(MealBase):
     client_id: Optional[int] = None
 
 
+class MealUpdate(MealBase):
+    pass
+
+
 class MealRead(MealBase):
     id: int
     client_id: int

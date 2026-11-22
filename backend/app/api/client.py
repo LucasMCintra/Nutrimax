@@ -19,6 +19,7 @@ from app.schemas import (
     GoalUpdate,
     MealCreate,
     MealRead,
+    MealUpdate,
 )
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
@@ -167,3 +168,29 @@ def create_meal(
     if meal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
     return meal
+
+
+@router.put("/{client_id}/meal/{meal_id}", response_model=MealRead)
+def update_meal(
+    client_id: int,
+    meal_id: int,
+    payload: MealUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    meal = crud.update_meal(db, client_id, meal_id, payload, current_user.id)
+    if meal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    return meal
+
+
+@router.delete("/{client_id}/meal/{meal_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_meal(
+    client_id: int,
+    meal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    if not crud.delete_meal(db, client_id, meal_id, current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
