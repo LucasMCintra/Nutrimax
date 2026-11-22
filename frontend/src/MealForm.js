@@ -1,6 +1,9 @@
 import { useState } from "react";
 import "./OnboardingForm.css";
 
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 function MealForm({ meal, onSubmit, onClose }) {
   const [formData, setFormData] = useState({
     meal_date: meal?.meal_date || new Date().toISOString().slice(0, 10),
@@ -9,6 +12,8 @@ function MealForm({ meal, onSubmit, onClose }) {
     carbohydrates: meal?.carbohydrates ?? "",
     fat: meal?.fat ?? "",
   });
+  const [imageFile, setImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const isEditing = Boolean(meal);
@@ -18,17 +23,38 @@ function MealForm({ meal, onSubmit, onClose }) {
     setFormData((current) => ({ ...current, [name]: value }));
   };
 
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setError("Escolha uma imagem JPEG, PNG ou WebP.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setError("A imagem deve ter no máximo 5 MB.");
+      event.target.value = "";
+      return;
+    }
+    setError("");
+    setImageFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
     setLoading(true);
     try {
       await onSubmit({
-        meal_date: formData.meal_date,
-        calories: Number(formData.calories) || 0,
-        protein: Number(formData.protein) || 0,
-        carbohydrates: Number(formData.carbohydrates) || 0,
-        fat: Number(formData.fat) || 0,
+        meal: {
+          meal_date: formData.meal_date,
+          calories: Number(formData.calories) || 0,
+          protein: Number(formData.protein) || 0,
+          carbohydrates: Number(formData.carbohydrates) || 0,
+          fat: Number(formData.fat) || 0,
+        },
+        imageFile,
       });
     } catch (requestError) {
       setError(requestError.message);
@@ -53,6 +79,11 @@ function MealForm({ meal, onSubmit, onClose }) {
           <div className="form-group">
             <label htmlFor="meal_date">Data</label>
             <input id="meal_date" type="date" name="meal_date" value={formData.meal_date} onChange={handleChange} required />
+          </div>
+          <div className="meal-image-field">
+            <label htmlFor="meal-image">Foto da refeição <span>opcional</span></label>
+            <input id="meal-image" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} />
+            {previewUrl && <img className="meal-image-preview" src={previewUrl} alt="Pré-visualização da refeição selecionada" />}
           </div>
           <div className="meal-nutrients">
             <div className="form-group"><label htmlFor="calories">Calorias (kcal)</label><input id="calories" type="number" name="calories" value={formData.calories} onChange={handleChange} min="0" step="1" required /></div>

@@ -165,7 +165,8 @@ nav { display: grid; gap: 5px; }
 .meal-list { display: grid; gap: 10px; }
 .meal-row { display: grid; grid-template-columns: auto minmax(150px, 1fr) minmax(230px, .9fr) auto; align-items: center; gap: 16px; padding: 17px 19px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); transition: transform .22s var(--ease), box-shadow .22s ease, border-color .22s ease; }
 .meal-row:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); border-color: #c9dfda; }
-.meal-date-mark { width: 37px; height: 37px; display: grid; place-items: center; color: var(--coral); background: #fff0ed; border-radius: 10px; font-size: 18px; }
+.meal-date-mark, .meal-image-thumb { width: 37px; height: 37px; display: grid; place-items: center; color: var(--coral); background: #fff0ed; border-radius: 10px; font-size: 18px; }
+.meal-image-thumb { object-fit: cover; }
 .meal-row-main { display: grid; gap: 4px; min-width: 0; }.meal-row-main strong { font-size: 13px; }.meal-row-main span { color: var(--muted); font-size: 11px; }
 .meal-nutrient-list { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 7px 14px; color: var(--muted); font-size: 10px; }.meal-nutrient-list b { color: var(--ink); font-size: 11px; }
 .meal-row-actions { display: flex; justify-content: flex-end; gap: 6px; }
@@ -173,6 +174,7 @@ nav { display: grid; gap: 5px; }
 .meal-action:hover { transform: translateY(-1px); color: var(--ink); }
 .meal-action-danger { color: #b25a4a; background: #fff0ed; }
 .meal-action-danger:hover { color: #8f3d31; background: #ffe3dd; }
+.meal-row-actions { flex-wrap: wrap; }
 .empty-state { min-height: 310px; display: grid; place-content: center; justify-items: center; text-align: center; padding: 32px; background: var(--surface); border: 1px dashed #c9dfda; border-radius: 16px; }
 .empty-state-icon { width: 52px; height: 52px; display: grid; place-items: center; color: var(--teal); background: var(--teal-soft); border-radius: 16px; font-size: 28px; }.empty-state h2 { margin-top: 18px; }.empty-state p { max-width: 310px; margin: 8px 0 10px; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .progress-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }

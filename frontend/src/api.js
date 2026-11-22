@@ -71,6 +71,29 @@ export function deleteMeal(token, clientId, mealId) {
   });
 }
 
+export async function uploadMealImage(token, clientId, mealId, file) {
+  const body = new FormData();
+  body.append("image", file);
+  const response = await fetch(`${API_URL}/clients/${clientId}/meal/${mealId}/image`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.detail || "Não foi possível enviar a imagem.");
+  }
+  return response.json();
+}
+
+export async function getMealImage(token, clientId, mealId) {
+  const response = await fetch(`${API_URL}/clients/${clientId}/meal/${mealId}/image`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) return null;
+  return URL.createObjectURL(await response.blob());
+}
+
 export function getDashboardSummary(token, date) {
   const query = date ? `?reference_date=${date}` : "";
   return request(`/dashboard/summary${query}`, { headers: { Authorization: `Bearer ${token}` } });

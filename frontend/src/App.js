@@ -9,10 +9,12 @@ import {
   getDashboardSummary,
   getMeals,
   getProgress,
+  getMealImage,
   setNutritionTarget,
   updateClient,
   updateMeal,
   deleteMeal,
+  uploadMealImage,
   updateGoal,
 } from "./api";
 import { clearToken, getToken } from "./auth";
@@ -188,7 +190,7 @@ function GoalBanner({ title, progress, mealCount }) {
   );
 }
 
-function MealsView({ meals, onAddMeal, onEditMeal, onDeleteMeal }) {
+function MealsView({ meals, images, onAddMeal, onEditMeal, onDeleteMeal }) {
   const sortedMeals = useMemo(
     () => [...meals].sort((first, second) => new Date(second.meal_date) - new Date(first.meal_date)),
     [meals],
@@ -209,7 +211,7 @@ function MealsView({ meals, onAddMeal, onEditMeal, onDeleteMeal }) {
         <div className="meal-list" aria-label="Refeições registradas">
           {sortedMeals.map((meal) => (
             <article className="meal-row" key={meal.id}>
-              <div className="meal-date-mark" aria-hidden="true">◒</div>
+              {images[meal.id] ? <img className="meal-image-thumb" src={images[meal.id]} alt="Refeição registrada" /> : <div className="meal-date-mark" aria-hidden="true">◒</div>}
               <div className="meal-row-main">
                 <strong>{formatMealDate(meal.meal_date)}</strong>
                 <span>{formatNumber(meal.calories)} kcal registradas</span>
@@ -329,6 +331,7 @@ function App() {
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [showMealForm, setShowMealForm] = useState(false);
   const [editingMeal, setEditingMeal] = useState(null);
+  const [mealImages, setMealImages] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -366,6 +369,7 @@ function App() {
     setSummary(null);
     setProgress(null);
     setMeals([]);
+    setMealImages({});
   };
 
   const handleNavChange = (item) => {
@@ -388,14 +392,15 @@ function App() {
     setSummary(dashboard);
     setProgress(progressData);
     setMeals(clientMeals);
+    const imageEntries = await Promise.all(clientMeals.map(async (meal) => [meal.id, await getMealImage(token, client.id, meal.id)]));
+    setMealImages(Object.fromEntries(imageEntries.filter(([, image]) => image)));
   };
 
   const handleMealSubmit = async (data) => {
-    if (editingMeal) {
-      await updateMeal(token, client.id, editingMeal.id, data);
-    } else {
-      await createMeal(token, client.id, data);
-    }
+    const savedMeal = editingMeal
+      ? await updateMeal(token, client.id, editingMeal.id, data.meal)
+      : await createMeal(token, client.id, data.meal);
+    if (data.imageFile) await uploadMealImage(token, client.id, savedMeal.id, data.imageFile);
     await refreshTrackingData();
     setEditingMeal(null);
     setShowMealForm(false);
@@ -499,6 +504,8 @@ function App() {
         setSummary(dashboard);
         setProgress(progressData);
         setMeals(clientMeals);
+        const imageEntries = await Promise.all(clientMeals.map(async (meal) => [meal.id, await getMealImage(token, clients[0].id, meal.id)]));
+        setMealImages(Object.fromEntries(imageEntries.filter(([, image]) => image)));
       } catch (requestError) {
         clearToken();
         setToken(null);
@@ -532,6 +539,7 @@ function App() {
     if (activeNav === "Refeições") {
       return <MealsView
         meals={meals}
+        images={mealImages}
         onAddMeal={() => { setEditingMeal(null); setShowMealForm(true); }}
         onEditMeal={(meal) => { setEditingMeal(meal); setShowMealForm(true); }}
         onDeleteMeal={handleDeleteMeal}
