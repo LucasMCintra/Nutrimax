@@ -3,8 +3,8 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Client, Diet, Goal, Meal, User
-from app.schemas import ClientCreate, ClientUpdate, DietCreate, GoalCreate, MealCreate, MealUpdate
+from app.models import Client, Diet, Goal, Meal, MealItem, User
+from app.schemas import ClientCreate, ClientUpdate, DietCreate, GoalCreate, MealCreate, MealItemCreate, MealUpdate
 
 
 def get_client(db: Session, client_id: int, user_id: int | None = None) -> Client | None:
@@ -137,6 +137,72 @@ def delete_meal(db: Session, client_id: int, meal_id: int, user_id: int) -> bool
     db.delete(db_meal)
     db.commit()
     return True
+
+
+def recalculate_meal_totals(db: Session, meal: Meal) -> Meal:
+    meal.calories = sum(item.calories for item in meal.items)
+    meal.protein = sum(item.protein for item in meal.items)
+    meal.carbohydrates = sum(item.carbohydrates for item in meal.items)
+    meal.fat = sum(item.fat for item in meal.items)
+    return meal
+
+
+def get_meal_item(db: Session, client_id: int, meal_id: int, item_id: int, user_id: int) -> MealItem | None:
+    return db.execute(
+        select(MealItem)
+        .join(Meal)
+        .join(Client)
+        .where(
+            MealItem.id == item_id,
+            MealItem.meal_id == meal_id,
+            Meal.client_id == client_id,
+            Client.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+
+
+def create_meal_item(db: Session, client_id: int, meal_id: int, item: MealItemCreate, user_id: int) -> MealItem | None:
+    db_meal = get_meal(db, client_id, meal_id, user_id)
+    if db_meal is None:
+        return None
+    db_item = MealItem(meal_id=meal_id, **item.model_dump())
+    db.add(db_item)
+    db.flush()
+    recalculate_meal_totals(db, db_meal)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+def update_meal_item(db: Session, client_id: int, meal_id: int, item_id: int, item: MealItemCreate, user_id: int) -> MealItem | None:
+    db_item = get_meal_item(db, client_id, meal_id, item_id, user_id)
+    if db_item is None:
+        return None
+    for field, value in item.model_dump().items():
+        setattr(db_item, field, value)
+    recalculate_meal_totals(db, db_item.meal)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+def delete_meal_item(db: Session, client_id: int, meal_id: int, item_id: int, user_id: int) -> bool:
+    db_item = get_meal_item(db, client_id, meal_id, item_id, user_id)
+    if db_item is None:
+        return False
+    db_meal = db_item.meal
+    db.delete(db_item)
+    db.flush()
+    recalculate_meal_totals(db, db_meal)
+    db.commit()
+    return True
+
+
+def get_meal_items(db: Session, client_id: int, meal_id: int, user_id: int) -> list[MealItem] | None:
+    db_meal = get_meal(db, client_id, meal_id, user_id)
+    if db_meal is None:
+        return None
+    return db_meal.items
 
 
 def get_meals_by_client(db: Session, client_id: int, user_id: int) -> list[Meal]:

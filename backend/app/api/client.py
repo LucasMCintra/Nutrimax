@@ -23,6 +23,8 @@ from app.schemas import (
     GoalRead,
     GoalUpdate,
     MealCreate,
+    MealItemCreate,
+    MealItemRead,
     MealRead,
     MealUpdate,
 )
@@ -222,6 +224,61 @@ def update_meal(
     if meal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
     return meal
+
+
+@router.get("/{client_id}/meal/{meal_id}/items", response_model=list[MealItemRead])
+def list_meal_items(
+    client_id: int,
+    meal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    items = crud.get_meal_items(db, client_id, meal_id, current_user.id)
+    if items is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    return items
+
+
+@router.post("/{client_id}/meal/{meal_id}/items", response_model=MealItemRead, status_code=status.HTTP_201_CREATED)
+def create_meal_item(
+    client_id: int,
+    meal_id: int,
+    payload: MealItemCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = crud.create_meal_item(db, client_id, meal_id, payload, current_user.id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    return item
+
+
+@router.put("/{client_id}/meal/{meal_id}/items/{item_id}", response_model=MealItemRead)
+def update_meal_item(
+    client_id: int,
+    meal_id: int,
+    item_id: int,
+    payload: MealItemCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = crud.update_meal_item(db, client_id, meal_id, item_id, payload, current_user.id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal item not found")
+    return item
+
+
+@router.delete("/{client_id}/meal/{meal_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_meal_item(
+    client_id: int,
+    meal_id: int,
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    if not crud.delete_meal_item(db, client_id, meal_id, item_id, current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal item not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/{client_id}/meal/{meal_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)

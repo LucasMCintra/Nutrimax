@@ -121,6 +121,75 @@ def test_create_meal_for_client(client) -> None:
     assert response.json()["image_url"] == "almoco.jpg"
 
 
+def test_meal_items_recalculate_meal_totals(client) -> None:
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Itens"}, headers=headers)
+    meal = client.post(
+        "/api/v1/clients/1/meal", json={"meal_date": "2026-01-01"}, headers=headers
+    ).json()
+    item = {
+        "food_name": "Arroz integral",
+        "quantity": 150,
+        "unit": "g",
+        "calories": 180,
+        "protein": 4,
+        "carbohydrates": 38,
+        "fat": 1,
+    }
+    response = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/items", json=item, headers=headers
+    )
+    assert response.status_code == 201
+    item_id = response.json()["id"]
+    response = client.get(f"/api/v1/clients/1/meals", headers=headers)
+    assert response.json()[0]["calories"] == 180
+    assert response.json()[0]["items"][0]["food_name"] == "Arroz integral"
+
+    response = client.put(
+        f"/api/v1/clients/1/meal/{meal['id']}/items/{item_id}",
+        json={**item, "calories": 220, "protein": 5},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    meal_data = client.get("/api/v1/clients/1/meals", headers=headers).json()[0]
+    assert meal_data["calories"] == 220
+    assert meal_data["protein"] == 5
+
+    response = client.delete(
+        f"/api/v1/clients/1/meal/{meal['id']}/items/{item_id}", headers=headers
+    )
+    assert response.status_code == 204
+    meal_data = client.get("/api/v1/clients/1/meals", headers=headers).json()[0]
+    assert meal_data["calories"] == 0
+    assert meal_data["items"] == []
+
+
+def test_users_cannot_access_each_others_meal_items(client) -> None:
+    owner_headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Itens privados"}, headers=owner_headers)
+    meal = client.post(
+        "/api/v1/clients/1/meal", json={"meal_date": "2026-01-01"}, headers=owner_headers
+    ).json()
+    client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/items",
+        json={"food_name": "Feijão", "quantity": 100, "unit": "g"},
+        headers=owner_headers,
+    )
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "item-other@example.com", "password": "StrongPassword123"},
+    )
+    token = client.post(
+        "/api/v1/auth/login",
+        data={"username": "item-other@example.com", "password": "StrongPassword123"},
+    ).json()["access_token"]
+    response = client.get(
+        f"/api/v1/clients/1/meal/{meal['id']}/items",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 404
+
+
 def test_upload_and_get_meal_image(client) -> None:
     headers = auth_headers(client)
     client.post("/api/v1/clients", json={"name": "Imagem"}, headers=headers)

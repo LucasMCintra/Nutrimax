@@ -95,9 +95,30 @@ class MealUpdate(MealBase):
     pass
 
 
+class MealItemBase(BaseModel):
+    food_name: str = Field(..., min_length=1, max_length=120)
+    quantity: float = Field(..., gt=0)
+    unit: str = Field(..., min_length=1, max_length=30)
+    calories: float = Field(default=0, ge=0)
+    protein: float = Field(default=0, ge=0)
+    carbohydrates: float = Field(default=0, ge=0)
+    fat: float = Field(default=0, ge=0)
+
+
+class MealItemCreate(MealItemBase):
+    pass
+
+
+class MealItemRead(MealItemBase):
+    id: int
+    meal_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
 class MealRead(MealBase):
     id: int
     client_id: int
+    items: list[MealItemRead] = []
     model_config = ConfigDict(from_attributes=True)
 
 

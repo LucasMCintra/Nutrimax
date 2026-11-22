@@ -85,3 +85,20 @@ class Meal(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     client: Mapped[Client] = relationship(back_populates="meals")
+    items: Mapped[list["MealItem"]] = relationship(back_populates="meal", cascade="all, delete-orphan")
+
+
+class MealItem(Base):
+    __tablename__ = "meal_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meal_id: Mapped[int] = mapped_column(ForeignKey("meals.id"), nullable=False)
+    food_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    quantity: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+    unit: Mapped[str] = mapped_column(String(30), nullable=False)
+    calories: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+    protein: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+    carbohydrates: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+    fat: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+
+    meal: Mapped[Meal] = relationship(back_populates="items")
