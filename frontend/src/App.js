@@ -11,6 +11,8 @@ import {
   getProgress,
   setNutritionTarget,
   updateClient,
+  updateMeal,
+  deleteMeal,
   updateGoal,
 } from "./api";
 import { clearToken, getToken } from "./auth";
@@ -186,7 +188,7 @@ function GoalBanner({ title, progress, mealCount }) {
   );
 }
 
-function MealsView({ meals, onAddMeal }) {
+function MealsView({ meals, onAddMeal, onEditMeal, onDeleteMeal }) {
   const sortedMeals = useMemo(
     () => [...meals].sort((first, second) => new Date(second.meal_date) - new Date(first.meal_date)),
     [meals],
@@ -216,6 +218,10 @@ function MealsView({ meals, onAddMeal }) {
                 <span><b>{formatNumber(meal.protein, 1)}g</b> proteína</span>
                 <span><b>{formatNumber(meal.carbohydrates, 1)}g</b> carboidratos</span>
                 <span><b>{formatNumber(meal.fat, 1)}g</b> gorduras</span>
+              </div>
+              <div className="meal-row-actions">
+                <button type="button" className="meal-action" onClick={() => onEditMeal(meal)} aria-label={`Editar refeição de ${formatMealDate(meal.meal_date)}`}>Editar</button>
+                <button type="button" className="meal-action meal-action-danger" onClick={() => onDeleteMeal(meal)} aria-label={`Excluir refeição de ${formatMealDate(meal.meal_date)}`}>Excluir</button>
               </div>
             </article>
           ))}
@@ -322,6 +328,7 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [showMealForm, setShowMealForm] = useState(false);
+  const [editingMeal, setEditingMeal] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -368,20 +375,42 @@ function App() {
     setHelpOpen(false);
   };
 
-  const handleMealSubmit = async (data) => {
-    const savedMeal = await createMeal(token, client.id, data);
-    setMeals((currentMeals) => [...currentMeals, savedMeal]);
+  const refreshTrackingData = async () => {
     const today = new Date().toISOString().slice(0, 10);
     const start = new Date();
     start.setDate(start.getDate() - 6);
     const startDate = start.toISOString().slice(0, 10);
-    const [dashboard, progressData] = await Promise.all([
+    const [dashboard, progressData, clientMeals] = await Promise.all([
       getDashboardSummary(token, today),
       getProgress(token, startDate, today),
+      getMeals(token, client.id),
     ]);
     setSummary(dashboard);
     setProgress(progressData);
+    setMeals(clientMeals);
+  };
+
+  const handleMealSubmit = async (data) => {
+    if (editingMeal) {
+      await updateMeal(token, client.id, editingMeal.id, data);
+    } else {
+      await createMeal(token, client.id, data);
+    }
+    await refreshTrackingData();
+    setEditingMeal(null);
     setShowMealForm(false);
+  };
+
+  const handleDeleteMeal = async (meal) => {
+    const confirmed = window.confirm(`Excluir a refeição de ${formatMealDate(meal.meal_date)}?`);
+    if (!confirmed) return;
+    setError("");
+    try {
+      await deleteMeal(token, client.id, meal.id);
+      await refreshTrackingData();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
   };
 
   const refreshClientData = async () => {
@@ -501,7 +530,12 @@ function App() {
 
   const renderActiveView = () => {
     if (activeNav === "Refeições") {
-      return <MealsView meals={meals} onAddMeal={() => setShowMealForm(true)} />;
+      return <MealsView
+        meals={meals}
+        onAddMeal={() => { setEditingMeal(null); setShowMealForm(true); }}
+        onEditMeal={(meal) => { setEditingMeal(meal); setShowMealForm(true); }}
+        onDeleteMeal={handleDeleteMeal}
+      />;
     }
 
     if (activeNav === "Progresso") {
@@ -627,7 +661,7 @@ function App() {
       </main>
       {showOnboarding && <OnboardingForm onSubmit={handleOnboardingSubmit} onClose={() => setShowOnboarding(false)} />}
       {showPlanForm && <PlanForm client={client} nutritionItems={liveNutrition} onSubmit={handlePlanSubmit} onClose={() => setShowPlanForm(false)} />}
-      {showMealForm && <MealForm onSubmit={handleMealSubmit} onClose={() => setShowMealForm(false)} />}
+      {showMealForm && <MealForm meal={editingMeal} onSubmit={handleMealSubmit} onClose={() => { setEditingMeal(null); setShowMealForm(false); }} />}
     </div>
   );
 }

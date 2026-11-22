@@ -1,18 +1,17 @@
 import { useState } from "react";
 import "./OnboardingForm.css";
 
-const initialData = {
-  meal_date: new Date().toISOString().slice(0, 10),
-  calories: "",
-  protein: "",
-  carbohydrates: "",
-  fat: "",
-};
-
-function MealForm({ onSubmit, onClose }) {
-  const [formData, setFormData] = useState(initialData);
+function MealForm({ meal, onSubmit, onClose }) {
+  const [formData, setFormData] = useState({
+    meal_date: meal?.meal_date || new Date().toISOString().slice(0, 10),
+    calories: meal?.calories ?? "",
+    protein: meal?.protein ?? "",
+    carbohydrates: meal?.carbohydrates ?? "",
+    fat: meal?.fat ?? "",
+  });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const isEditing = Boolean(meal);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -41,8 +40,14 @@ function MealForm({ onSubmit, onClose }) {
   return (
     <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="meal-form-title">
       <div className="onboarding-card meal-form-card">
-        <h2 id="meal-form-title">Registrar refeição</h2>
-        <p className="onboarding-intro">Adicione os nutrientes consumidos para atualizar seu acompanhamento.</p>
+        <div className="onboarding-heading">
+          <div>
+            <p className="onboarding-kicker">REGISTRO NUTRICIONAL</p>
+            <h2 id="meal-form-title">{isEditing ? "Editar refeição" : "Registrar refeição"}</h2>
+            <p className="onboarding-intro">{isEditing ? "Corrija os dados para manter seu histórico preciso." : "Adicione os nutrientes consumidos para atualizar seu acompanhamento."}</p>
+          </div>
+          <button type="button" className="onboarding-close" onClick={onClose} aria-label="Fechar formulário">×</button>
+        </div>
         {error && <p className="form-error" role="alert">{error}</p>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -56,7 +61,7 @@ function MealForm({ onSubmit, onClose }) {
             <div className="form-group"><label htmlFor="fat">Gorduras (g)</label><input id="fat" type="number" name="fat" value={formData.fat} onChange={handleChange} min="0" step="0.1" /></div>
           </div>
           <div className="form-actions">
-            <button type="submit" className="primary-button" disabled={loading}>{loading ? "Salvando..." : "Registrar refeição"}</button>
+            <button type="submit" className="primary-button" disabled={loading}>{loading ? "Salvando..." : isEditing ? "Salvar alterações" : "Registrar refeição"}</button>
             <button type="button" className="secondary-button" onClick={onClose}>Cancelar</button>
           </div>
         </form>

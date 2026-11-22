@@ -56,6 +56,21 @@ export function createMeal(token, clientId, payload) {
   });
 }
 
+export function updateMeal(token, clientId, mealId, payload) {
+  return request(`/clients/${clientId}/meal/${mealId}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteMeal(token, clientId, mealId) {
+  return request(`/clients/${clientId}/meal/${mealId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 export function getDashboardSummary(token, date) {
   const query = date ? `?reference_date=${date}` : "";
   return request(`/dashboard/summary${query}`, { headers: { Authorization: `Bearer ${token}` } });
