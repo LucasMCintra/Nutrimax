@@ -121,6 +121,89 @@ def test_create_meal_for_client(client) -> None:
     assert response.json()["image_url"] == "almoco.jpg"
 
 
+def test_upload_and_get_meal_image(client) -> None:
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Imagem"}, headers=headers)
+    created = client.post(
+        "/api/v1/clients/1/meal",
+        json={"meal_date": "2026-01-01", "calories": 500},
+        headers=headers,
+    ).json()
+    files = {"image": ("almoco.jpg", b"fake-jpeg-content", "image/jpeg")}
+
+    response = client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files=files,
+        headers=headers,
+    )
+    assert response.status_code == 200
+    filename = response.json()["image_url"]
+    assert filename.endswith(".jpg")
+
+    response = client.get(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.content == b"fake-jpeg-content"
+    assert response.headers["content-type"] == "image/jpeg"
+
+
+def test_upload_meal_image_rejects_unsupported_type_and_oversized_file(client) -> None:
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Validação de imagem"}, headers=headers)
+    created = client.post(
+        "/api/v1/clients/1/meal",
+        json={"meal_date": "2026-01-01"},
+        headers=headers,
+    ).json()
+
+    response = client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("nota.txt", b"text", "text/plain")},
+        headers=headers,
+    )
+    assert response.status_code == 415
+
+    response = client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("grande.jpg", b"x" * (5 * 1024 * 1024 + 1), "image/jpeg")},
+        headers=headers,
+    )
+    assert response.status_code == 413
+
+
+def test_users_cannot_access_each_others_meal_images(client) -> None:
+    owner_headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Imagem privada"}, headers=owner_headers)
+    created = client.post(
+        "/api/v1/clients/1/meal",
+        json={"meal_date": "2026-01-01"},
+        headers=owner_headers,
+    ).json()
+    client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("privada.png", b"private-image", "image/png")},
+        headers=owner_headers,
+    )
+
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "image-other@example.com", "password": "StrongPassword123"},
+    )
+    token = client.post(
+        "/api/v1/auth/login",
+        data={"username": "image-other@example.com", "password": "StrongPassword123"},
+    ).json()["access_token"]
+    other_headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.get(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        headers=other_headers,
+    )
+    assert response.status_code == 404
+
+
 def test_update_meal_for_client(client) -> None:
     headers = auth_headers(client)
     client.post("/api/v1/clients", json={"name": "Refeição editável"}, headers=headers)

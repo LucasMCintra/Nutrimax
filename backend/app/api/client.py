@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app import crud
 from app.api.auth import get_current_user
 from app.db import get_db
+from app.core.config import settings
 from app.models import User
+from app.storage import resolve_image, save_image
 from app.schemas import (
     ClientCreate,
     ClientRead,
@@ -23,6 +28,7 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
+UPLOAD_DIR = Path(settings.upload_dir)
 
 
 def require_client(client_id: int, user: User, db: Session):
@@ -168,6 +174,40 @@ def create_meal(
     if meal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
     return meal
+
+
+@router.post("/{client_id}/meal/{meal_id}/image", response_model=MealRead)
+def upload_meal_image(
+    client_id: int,
+    meal_id: int,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    meal = crud.get_meal(db, client_id, meal_id, current_user.id)
+    if meal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    filename, _ = save_image(image, UPLOAD_DIR / str(current_user.id))
+    meal.image_url = filename
+    db.commit()
+    db.refresh(meal)
+    return meal
+
+
+@router.get("/{client_id}/meal/{meal_id}/image")
+def get_meal_image(
+    client_id: int,
+    meal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    meal = crud.get_meal(db, client_id, meal_id, current_user.id)
+    if meal is None or not meal.image_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal image not found")
+    image_path = resolve_image(UPLOAD_DIR / str(current_user.id), meal.image_url)
+    if image_path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal image not found")
+    return FileResponse(image_path)
 
 
 @router.put("/{client_id}/meal/{meal_id}", response_model=MealRead)

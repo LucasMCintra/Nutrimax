@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     jwt_secret_key: str = "change-this-secret-in-production"
     access_token_expire_minutes: int = 30
+    upload_dir: str = "uploads/meals"
 
     model_config = SettingsConfigDict(
         env_file=".env",

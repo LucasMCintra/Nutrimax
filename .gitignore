@@ -223,5 +223,8 @@ __marimo__/
 node_modules/
 frontend/build/
 
+# User-uploaded meal images
+backend/uploads/
+
 # Streamlit
 .streamlit/secrets.toml
