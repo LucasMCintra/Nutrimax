@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,6 +13,11 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-this-secret-in-production"
     access_token_expire_minutes: int = 30
     upload_dir: str = "uploads/meals"
+    google_ai_studio_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_api_url: str = "https://generativelanguage.googleapis.com/v1beta/models"
+    gemini_timeout_seconds: float = 60.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

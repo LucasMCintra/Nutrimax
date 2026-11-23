@@ -222,13 +222,30 @@ def create_pending_analysis(db: Session, client_id: int, meal_id: int, user_id: 
     return analysis
 
 
-def complete_analysis(db: Session, client_id: int, meal_id: int, analysis_id: int, items: list[MealAnalysisItemBase], user_id: int) -> MealAnalysis | None:
+def fail_analysis(db: Session, analysis: MealAnalysis, message: str) -> MealAnalysis:
+    analysis.status = "failed"
+    analysis.error_message = message[:500]
+    db.commit()
+    db.refresh(analysis)
+    return analysis
+
+
+def complete_analysis(
+    db: Session,
+    client_id: int,
+    meal_id: int,
+    analysis_id: int,
+    items: list[MealAnalysisItemBase],
+    user_id: int,
+    provider: str = "manual",
+) -> MealAnalysis | None:
     analysis = get_meal_analysis(db, client_id, meal_id, analysis_id, user_id)
     if analysis is None:
         return None
     analysis.items.clear()
     analysis.items.extend(MealAnalysisItem(**item.model_dump()) for item in items)
     analysis.status = "completed"
+    analysis.provider = provider
     analysis.error_message = None
     from datetime import datetime, timezone
     analysis.completed_at = datetime.now(timezone.utc)

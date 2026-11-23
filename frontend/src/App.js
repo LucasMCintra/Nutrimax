@@ -12,6 +12,7 @@ import {
   getMealImage,
   createMealAnalysis,
   completeMealAnalysis,
+  runMealAnalysis,
   confirmMealAnalysis,
   setNutritionTarget,
   updateClient,
@@ -418,7 +419,8 @@ function App() {
     setAnalysisLoading(true);
     try {
       const analysis = await createMealAnalysis(token, client.id, meal.id);
-      setAnalysisMeal({ meal, analysisId: analysis.id });
+      const completed = await runMealAnalysis(token, client.id, meal.id, analysis.id);
+      setAnalysisMeal({ meal, analysisId: completed.id, items: completed.items });
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -699,7 +701,7 @@ function App() {
       </main>
       {showOnboarding && <OnboardingForm onSubmit={handleOnboardingSubmit} onClose={() => setShowOnboarding(false)} />}
       {showPlanForm && <PlanForm client={client} nutritionItems={liveNutrition} onSubmit={handlePlanSubmit} onClose={() => setShowPlanForm(false)} />}
-      {analysisMeal && <MealAnalysisForm meal={analysisMeal.meal} onSubmit={handleAnalysisSubmit} onClose={() => setAnalysisMeal(null)} />}
+      {analysisMeal && <MealAnalysisForm meal={analysisMeal.meal} initialItems={analysisMeal.items} onSubmit={handleAnalysisSubmit} onClose={() => setAnalysisMeal(null)} />}
       {showMealForm && <MealForm meal={editingMeal} onSubmit={handleMealSubmit} onClose={() => { setEditingMeal(null); setShowMealForm(false); }} />}
     </div>
   );

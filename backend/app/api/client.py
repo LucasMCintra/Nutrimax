@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app import crud
+from app.ai_provider import AnalysisProviderError, GoogleAIStudioProvider, MealImage
 from app.api.auth import get_current_user
 from app.db import get_db
 from app.core.config import settings
@@ -37,6 +38,23 @@ router = APIRouter(prefix="/clients", tags=["Clients"])
 
 def get_upload_dir() -> Path:
     return Path(settings.upload_dir)
+
+
+def get_meal_image_bytes(meal, user_id: int) -> tuple[bytes, str] | None:
+    if not meal.image_url:
+        return None
+    image_path = resolve_image(get_upload_dir() / str(user_id), meal.image_url)
+    if image_path is None:
+        return None
+    mime_type = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+    }.get(image_path.suffix.lower())
+    if mime_type is None:
+        return None
+    return image_path.read_bytes(), mime_type
 
 
 def require_client(client_id: int, user: User, db: Session):
@@ -243,6 +261,32 @@ def create_meal_analysis(
     if analysis is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
     return analysis
+
+
+@router.post("/{client_id}/meal/{meal_id}/analysis/{analysis_id}/run", response_model=MealAnalysisRead)
+def run_meal_analysis(
+    client_id: int,
+    meal_id: int,
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    analysis = crud.get_meal_analysis(db, client_id, meal_id, analysis_id, current_user.id)
+    if analysis is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
+    meal = crud.get_meal(db, client_id, meal_id, current_user.id)
+    image = get_meal_image_bytes(meal, current_user.id) if meal else None
+    if image is None:
+        crud.fail_analysis(db, analysis, "Meal image not found")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Meal image is required for analysis")
+    try:
+        items = GoogleAIStudioProvider().analyze_meal(MealImage(data=image[0], mime_type=image[1]))
+        return crud.complete_analysis(
+            db, client_id, meal_id, analysis_id, items, current_user.id, provider="google_ai_studio"
+        )
+    except AnalysisProviderError as error:
+        failed = crud.fail_analysis(db, analysis, str(error))
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=failed.error_message) from error
 
 
 @router.put("/{client_id}/meal/{meal_id}/analysis/{analysis_id}", response_model=MealAnalysisRead)

@@ -121,6 +121,67 @@ def test_create_meal_for_client(client) -> None:
     assert response.json()["image_url"] == "almoco.jpg"
 
 
+def test_run_meal_analysis_marks_provider_and_completed(client, monkeypatch) -> None:
+    from app.ai_provider import GoogleAIStudioProvider
+    from app.schemas import MealAnalysisItemBase
+
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Análise Google"}, headers=headers)
+    meal = client.post(
+        "/api/v1/clients/1/meal", json={"meal_date": "2026-01-01"}, headers=headers
+    ).json()
+    image_path = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/image",
+        files={"image": ("meal.jpg", b"image", "image/jpeg")},
+        headers=headers,
+    )
+    assert image_path.status_code == 200
+    analysis = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis", headers=headers
+    ).json()
+
+    monkeypatch.setattr(
+        GoogleAIStudioProvider,
+        "analyze_meal",
+        lambda self, image: [MealAnalysisItemBase(
+            food_name="Salada",
+            quantity=100,
+            unit="g",
+            calories=35,
+            protein=2,
+            carbohydrates=5,
+            fat=1,
+            confidence=0.88,
+        )],
+    )
+    response = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis/{analysis['id']}/run",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+    assert response.json()["provider"] == "google_ai_studio"
+
+
+def test_run_meal_analysis_marks_failed_without_image(client) -> None:
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Análise sem imagem"}, headers=headers)
+    meal = client.post(
+        "/api/v1/clients/1/meal", json={"meal_date": "2026-01-01"}, headers=headers
+    ).json()
+    analysis = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis", headers=headers
+    ).json()
+
+    response = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis/{analysis['id']}/run",
+        headers=headers,
+    )
+    assert response.status_code == 422
+    response = client.get(f"/api/v1/clients/1/meals", headers=headers)
+    assert response.status_code == 200
+
+
 def test_meal_analysis_requires_confirmation_before_applying_items(client) -> None:
     headers = auth_headers(client)
     client.post("/api/v1/clients", json={"name": "Análise"}, headers=headers)

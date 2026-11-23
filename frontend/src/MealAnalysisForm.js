@@ -13,8 +13,8 @@ const emptyItem = {
   selected: true,
 };
 
-function MealAnalysisForm({ meal, onSubmit, onClose }) {
-  const [items, setItems] = useState([]);
+function MealAnalysisForm({ meal, initialItems = [], onSubmit, onClose }) {
+  const [items, setItems] = useState(() => initialItems.map((item) => ({ ...item, selected: true })));
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 

@@ -78,6 +78,13 @@ export function createMealAnalysis(token, clientId, mealId) {
   });
 }
 
+export function runMealAnalysis(token, clientId, mealId, analysisId) {
+  return request(`/clients/${clientId}/meal/${mealId}/analysis/${analysisId}/run`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 export function completeMealAnalysis(token, clientId, mealId, analysisId, items) {
   return request(`/clients/${clientId}/meal/${mealId}/analysis/${analysisId}`, {
     method: "PUT",
