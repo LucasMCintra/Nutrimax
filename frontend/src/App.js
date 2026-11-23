@@ -10,6 +10,9 @@ import {
   getMeals,
   getProgress,
   getMealImage,
+  createMealAnalysis,
+  completeMealAnalysis,
+  confirmMealAnalysis,
   setNutritionTarget,
   updateClient,
   updateMeal,
@@ -21,6 +24,7 @@ import { clearToken, getToken } from "./auth";
 import Login from "./Login";
 import OnboardingForm from "./OnboardingForm";
 import MealForm from "./MealForm";
+import MealAnalysisForm from "./MealAnalysisForm";
 import PlanForm from "./PlanForm";
 import "./App.css";
 
@@ -190,7 +194,7 @@ function GoalBanner({ title, progress, mealCount }) {
   );
 }
 
-function MealsView({ meals, images, onAddMeal, onEditMeal, onDeleteMeal }) {
+function MealsView({ meals, images, onAddMeal, onEditMeal, onDeleteMeal, onAnalyzeMeal, analysisLoading }) {
   const sortedMeals = useMemo(
     () => [...meals].sort((first, second) => new Date(second.meal_date) - new Date(first.meal_date)),
     [meals],
@@ -222,6 +226,7 @@ function MealsView({ meals, images, onAddMeal, onEditMeal, onDeleteMeal }) {
                 <span><b>{formatNumber(meal.fat, 1)}g</b> gorduras</span>
               </div>
               <div className="meal-row-actions">
+                <button type="button" className="meal-action meal-action-analysis" onClick={() => onAnalyzeMeal(meal)} disabled={analysisLoading} aria-label={`Analisar refeição de ${formatMealDate(meal.meal_date)}`}>{analysisLoading ? "Preparando..." : "Analisar"}</button>
                 <button type="button" className="meal-action" onClick={() => onEditMeal(meal)} aria-label={`Editar refeição de ${formatMealDate(meal.meal_date)}`}>Editar</button>
                 <button type="button" className="meal-action meal-action-danger" onClick={() => onDeleteMeal(meal)} aria-label={`Excluir refeição de ${formatMealDate(meal.meal_date)}`}>Excluir</button>
               </div>
@@ -331,6 +336,8 @@ function App() {
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [showMealForm, setShowMealForm] = useState(false);
   const [editingMeal, setEditingMeal] = useState(null);
+  const [analysisMeal, setAnalysisMeal] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
   const [mealImages, setMealImages] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -404,6 +411,27 @@ function App() {
     await refreshTrackingData();
     setEditingMeal(null);
     setShowMealForm(false);
+  };
+
+  const handleAnalyzeMeal = async (meal) => {
+    setError("");
+    setAnalysisLoading(true);
+    try {
+      const analysis = await createMealAnalysis(token, client.id, meal.id);
+      setAnalysisMeal({ meal, analysisId: analysis.id });
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const handleAnalysisSubmit = async (items) => {
+    const completed = await completeMealAnalysis(token, client.id, analysisMeal.meal.id, analysisMeal.analysisId, items);
+    const confirmed = await confirmMealAnalysis(token, client.id, analysisMeal.meal.id, completed.id, completed.items.map((item) => item.id));
+    setMeals((currentMeals) => currentMeals.map((meal) => (meal.id === confirmed.id ? confirmed : meal)));
+    await refreshTrackingData();
+    setAnalysisMeal(null);
   };
 
   const handleDeleteMeal = async (meal) => {
@@ -543,6 +571,8 @@ function App() {
         onAddMeal={() => { setEditingMeal(null); setShowMealForm(true); }}
         onEditMeal={(meal) => { setEditingMeal(meal); setShowMealForm(true); }}
         onDeleteMeal={handleDeleteMeal}
+        onAnalyzeMeal={handleAnalyzeMeal}
+        analysisLoading={analysisLoading}
       />;
     }
 
@@ -669,6 +699,7 @@ function App() {
       </main>
       {showOnboarding && <OnboardingForm onSubmit={handleOnboardingSubmit} onClose={() => setShowOnboarding(false)} />}
       {showPlanForm && <PlanForm client={client} nutritionItems={liveNutrition} onSubmit={handlePlanSubmit} onClose={() => setShowPlanForm(false)} />}
+      {analysisMeal && <MealAnalysisForm meal={analysisMeal.meal} onSubmit={handleAnalysisSubmit} onClose={() => setAnalysisMeal(null)} />}
       {showMealForm && <MealForm meal={editingMeal} onSubmit={handleMealSubmit} onClose={() => { setEditingMeal(null); setShowMealForm(false); }} />}
     </div>
   );

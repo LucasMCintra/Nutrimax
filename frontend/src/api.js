@@ -71,6 +71,29 @@ export function deleteMeal(token, clientId, mealId) {
   });
 }
 
+export function createMealAnalysis(token, clientId, mealId) {
+  return request(`/clients/${clientId}/meal/${mealId}/analysis`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function completeMealAnalysis(token, clientId, mealId, analysisId, items) {
+  return request(`/clients/${clientId}/meal/${mealId}/analysis/${analysisId}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(items),
+  });
+}
+
+export function confirmMealAnalysis(token, clientId, mealId, analysisId, itemIds) {
+  return request(`/clients/${clientId}/meal/${mealId}/analysis/${analysisId}/confirm`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ item_ids: itemIds }),
+  });
+}
+
 export async function uploadMealImage(token, clientId, mealId, file) {
   const body = new FormData();
   body.append("image", file);
