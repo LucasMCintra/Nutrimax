@@ -3,8 +3,8 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Client, Diet, Goal, Meal, MealItem, User
-from app.schemas import ClientCreate, ClientUpdate, DietCreate, GoalCreate, MealCreate, MealItemCreate, MealUpdate
+from app.models import Client, Diet, Goal, Meal, MealAnalysis, MealAnalysisItem, MealItem, User
+from app.schemas import ClientCreate, ClientUpdate, DietCreate, GoalCreate, MealAnalysisItemBase, MealCreate, MealItemCreate, MealUpdate
 
 
 def get_client(db: Session, client_id: int, user_id: int | None = None) -> Client | None:
@@ -196,6 +196,71 @@ def delete_meal_item(db: Session, client_id: int, meal_id: int, item_id: int, us
     recalculate_meal_totals(db, db_meal)
     db.commit()
     return True
+
+
+def get_meal_analysis(db: Session, client_id: int, meal_id: int, analysis_id: int, user_id: int) -> MealAnalysis | None:
+    return db.execute(
+        select(MealAnalysis)
+        .join(Meal)
+        .join(Client)
+        .where(
+            MealAnalysis.id == analysis_id,
+            MealAnalysis.meal_id == meal_id,
+            Meal.client_id == client_id,
+            Client.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+
+
+def create_pending_analysis(db: Session, client_id: int, meal_id: int, user_id: int) -> MealAnalysis | None:
+    if get_meal(db, client_id, meal_id, user_id) is None:
+        return None
+    analysis = MealAnalysis(meal_id=meal_id, status="pending", provider="manual")
+    db.add(analysis)
+    db.commit()
+    db.refresh(analysis)
+    return analysis
+
+
+def complete_analysis(db: Session, client_id: int, meal_id: int, analysis_id: int, items: list[MealAnalysisItemBase], user_id: int) -> MealAnalysis | None:
+    analysis = get_meal_analysis(db, client_id, meal_id, analysis_id, user_id)
+    if analysis is None:
+        return None
+    analysis.items.clear()
+    analysis.items.extend(MealAnalysisItem(**item.model_dump()) for item in items)
+    analysis.status = "completed"
+    analysis.error_message = None
+    from datetime import datetime, timezone
+    analysis.completed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(analysis)
+    return analysis
+
+
+def confirm_analysis(db: Session, client_id: int, meal_id: int, analysis_id: int, item_ids: list[int], user_id: int) -> Meal | None:
+    analysis = get_meal_analysis(db, client_id, meal_id, analysis_id, user_id)
+    if analysis is None or analysis.status != "completed":
+        return None
+    selected = [item for item in analysis.items if not item_ids or item.id in item_ids]
+    meal = analysis.meal
+    meal.items.clear()
+    meal.items.extend(
+        MealItem(
+            food_name=item.food_name,
+            quantity=item.quantity,
+            unit=item.unit,
+            calories=item.calories,
+            protein=item.protein,
+            carbohydrates=item.carbohydrates,
+            fat=item.fat,
+        )
+        for item in selected
+    )
+    recalculate_meal_totals(db, meal)
+    analysis.status = "confirmed"
+    db.commit()
+    db.refresh(meal)
+    return meal
 
 
 def get_meal_items(db: Session, client_id: int, meal_id: int, user_id: int) -> list[MealItem] | None:

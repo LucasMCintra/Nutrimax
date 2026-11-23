@@ -22,6 +22,9 @@ from app.schemas import (
     GoalCreate,
     GoalRead,
     GoalUpdate,
+    MealAnalysisConfirm,
+    MealAnalysisItemBase,
+    MealAnalysisRead,
     MealCreate,
     MealItemCreate,
     MealItemRead,
@@ -30,7 +33,10 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
-UPLOAD_DIR = Path(settings.upload_dir)
+
+
+def get_upload_dir() -> Path:
+    return Path(settings.upload_dir)
 
 
 def require_client(client_id: int, user: User, db: Session):
@@ -189,7 +195,7 @@ def upload_meal_image(
     meal = crud.get_meal(db, client_id, meal_id, current_user.id)
     if meal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
-    filename, _ = save_image(image, UPLOAD_DIR / str(current_user.id))
+    filename, _ = save_image(image, get_upload_dir() / str(current_user.id))
     meal.image_url = filename
     db.commit()
     db.refresh(meal)
@@ -206,7 +212,7 @@ def get_meal_image(
     meal = crud.get_meal(db, client_id, meal_id, current_user.id)
     if meal is None or not meal.image_url:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal image not found")
-    image_path = resolve_image(UPLOAD_DIR / str(current_user.id), meal.image_url)
+    image_path = resolve_image(get_upload_dir() / str(current_user.id), meal.image_url)
     if image_path is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal image not found")
     return FileResponse(image_path)
@@ -223,6 +229,49 @@ def update_meal(
     meal = crud.update_meal(db, client_id, meal_id, payload, current_user.id)
     if meal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    return meal
+
+
+@router.post("/{client_id}/meal/{meal_id}/analysis", response_model=MealAnalysisRead, status_code=status.HTTP_201_CREATED)
+def create_meal_analysis(
+    client_id: int,
+    meal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    analysis = crud.create_pending_analysis(db, client_id, meal_id, current_user.id)
+    if analysis is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    return analysis
+
+
+@router.put("/{client_id}/meal/{meal_id}/analysis/{analysis_id}", response_model=MealAnalysisRead)
+def complete_meal_analysis(
+    client_id: int,
+    meal_id: int,
+    analysis_id: int,
+    payload: list[MealAnalysisItemBase],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    analysis = crud.complete_analysis(db, client_id, meal_id, analysis_id, payload, current_user.id)
+    if analysis is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
+    return analysis
+
+
+@router.post("/{client_id}/meal/{meal_id}/analysis/{analysis_id}/confirm", response_model=MealRead)
+def confirm_meal_analysis(
+    client_id: int,
+    meal_id: int,
+    analysis_id: int,
+    payload: MealAnalysisConfirm,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    meal = crud.confirm_analysis(db, client_id, meal_id, analysis_id, payload.item_ids, current_user.id)
+    if meal is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only a completed analysis can be confirmed")
     return meal
 
 

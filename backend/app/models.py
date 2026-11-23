@@ -86,6 +86,7 @@ class Meal(Base):
 
     client: Mapped[Client] = relationship(back_populates="meals")
     items: Mapped[list["MealItem"]] = relationship(back_populates="meal", cascade="all, delete-orphan")
+    analyses: Mapped[list["MealAnalysis"]] = relationship(back_populates="meal", cascade="all, delete-orphan")
 
 
 class MealItem(Base):
@@ -102,3 +103,35 @@ class MealItem(Base):
     fat: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
 
     meal: Mapped[Meal] = relationship(back_populates="items")
+
+
+class MealAnalysis(Base):
+    __tablename__ = "meal_analyses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meal_id: Mapped[int] = mapped_column(ForeignKey("meals.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    provider: Mapped[str] = mapped_column(String(40), nullable=False, default="manual")
+    error_message: Mapped[Optional[str]] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    meal: Mapped[Meal] = relationship(back_populates="analyses")
+    items: Mapped[list["MealAnalysisItem"]] = relationship(back_populates="analysis", cascade="all, delete-orphan")
+
+
+class MealAnalysisItem(Base):
+    __tablename__ = "meal_analysis_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    analysis_id: Mapped[int] = mapped_column(ForeignKey("meal_analyses.id"), nullable=False)
+    food_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    quantity: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+    unit: Mapped[str] = mapped_column(String(30), nullable=False)
+    calories: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+    protein: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+    carbohydrates: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+    fat: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+    confidence: Mapped[Optional[float]] = mapped_column(Numeric(5, 4))
+
+    analysis: Mapped[MealAnalysis] = relationship(back_populates="items")

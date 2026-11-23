@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import date
-from typing import Optional
+from datetime import date, datetime
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -115,11 +115,38 @@ class MealItemRead(MealItemBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MealAnalysisItemBase(MealItemBase):
+    confidence: Optional[float] = Field(default=None, ge=0, le=1)
+
+
+class MealAnalysisItemRead(MealAnalysisItemBase):
+    id: int
+    analysis_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MealAnalysisRead(BaseModel):
+    id: int
+    meal_id: int
+    status: Literal["pending", "completed", "failed", "confirmed"]
+    provider: str
+    error_message: Optional[str] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    items: list[MealAnalysisItemRead] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
 class MealRead(MealBase):
     id: int
     client_id: int
     items: list[MealItemRead] = []
+    analyses: list[MealAnalysisRead] = []
     model_config = ConfigDict(from_attributes=True)
+
+
+class MealAnalysisConfirm(BaseModel):
+    item_ids: list[int] = Field(default_factory=list)
 
 
 class ClientWithRelations(ClientRead):
