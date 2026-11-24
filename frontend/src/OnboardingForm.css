@@ -179,6 +179,33 @@
   color: #738083;
 }
 
+.form-group textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 130px;
+  background: var(--input-bg, #2a3a44);
+  border: 1px solid var(--input-border, #4a5a60);
+  border-radius: 9px;
+  padding: 14px 16px;
+  color: var(--input-color, #f8faf9);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.form-group textarea:focus {
+  outline: none;
+  border-color: #18a999;
+  box-shadow: 0 0 0 3px rgba(24, 169, 153, .15);
+}
+
+.field-counter {
+  color: #738083;
+  font-size: 10px;
+  text-align: right;
+}
+
 .meal-image-field {
   display: grid;
   gap: 8px;

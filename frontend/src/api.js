@@ -174,3 +174,26 @@ export function setNutritionTarget(token, payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function createDiet(token, clientId, description) {
+  return request(`/clients/${clientId}/diet`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ description }),
+  });
+}
+
+export function updateDiet(token, clientId, description) {
+  return request(`/clients/${clientId}/diet`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ description }),
+  });
+}
+
+export function deleteDiet(token, clientId) {
+  return request(`/clients/${clientId}/diet`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}

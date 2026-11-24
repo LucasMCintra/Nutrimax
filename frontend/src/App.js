@@ -15,6 +15,9 @@ import {
   runMealAnalysis,
   confirmMealAnalysis,
   setNutritionTarget,
+  createDiet,
+  updateDiet,
+  deleteDiet,
   updateClient,
   updateMeal,
   deleteMeal,
@@ -26,6 +29,7 @@ import Login from "./Login";
 import OnboardingForm from "./OnboardingForm";
 import MealForm from "./MealForm";
 import MealAnalysisForm from "./MealAnalysisForm";
+import DietForm from "./DietForm";
 import PlanForm from "./PlanForm";
 import "./App.css";
 
@@ -281,7 +285,7 @@ function ProgressView({ points, nutritionItems }) {
   );
 }
 
-function PlanView({ goalTitle, nutritionItems, hasTarget, onAddMeal, onEditPlan }) {
+function PlanView({ goalTitle, nutritionItems, hasTarget, diet, onAddMeal, onEditPlan, onEditDiet, onDeleteDiet }) {
   return (
     <section className="page-view plan-view" aria-labelledby="plan-title" data-enter>
       <div className="page-view-header">
@@ -314,6 +318,11 @@ function PlanView({ goalTitle, nutritionItems, hasTarget, onAddMeal, onEditPlan 
           {!hasTarget && <p className="plan-helper">As referências exibidas são uma base inicial para o acompanhamento.</p>}
         </article>
       </div>
+      <article className="diet-card">
+        <div className="diet-card-heading"><div><span className="section-kicker">DIETA ATUAL</span><h2>{diet ? "Seu plano alimentar" : "Nenhuma dieta cadastrada"}</h2></div><span className="diet-card-icon" aria-hidden="true">▤</span></div>
+        <p className={diet ? "diet-description" : "diet-description diet-description-empty"}>{diet?.description || "Adicione uma descrição para manter sua estratégia alimentar junto das metas."}</p>
+        <div className="diet-card-actions"><button type="button" className="secondary-button" onClick={onEditDiet}>{diet ? "Editar dieta" : "Adicionar dieta"}</button>{diet && <button type="button" className="diet-delete-button" onClick={onDeleteDiet}>Excluir dieta</button>}</div>
+      </article>
       <div className="plan-tip">
         <span className="tip-icon" aria-hidden="true">↗</span>
         <div><strong>O histórico fica melhor com constância.</strong><p>Registre mesmo quando o dia não sair como planejado. Isso também faz parte do progresso.</p></div>
@@ -335,6 +344,7 @@ function App() {
   const [error, setError] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showPlanForm, setShowPlanForm] = useState(false);
+  const [showDietForm, setShowDietForm] = useState(false);
   const [showMealForm, setShowMealForm] = useState(false);
   const [editingMeal, setEditingMeal] = useState(null);
   const [analysisMeal, setAnalysisMeal] = useState(null);
@@ -502,6 +512,27 @@ function App() {
     setShowPlanForm(false);
   };
 
+  const handleDietSubmit = async (description) => {
+    if (client.diet) {
+      await updateDiet(token, client.id, description);
+    } else {
+      await createDiet(token, client.id, description);
+    }
+    await refreshClientData();
+    setShowDietForm(false);
+  };
+
+  const handleDietDelete = async () => {
+    if (!window.confirm("Excluir a dieta atual?")) return;
+    setError("");
+    try {
+      await deleteDiet(token, client.id);
+      await refreshClientData();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
+
   useEffect(() => {
     if (!token) return undefined;
 
@@ -583,7 +614,7 @@ function App() {
     }
 
     if (activeNav === "Meu plano") {
-      return <PlanView goalTitle={goalTitle} nutritionItems={liveNutrition} hasTarget={Boolean(summary?.target)} onAddMeal={() => setShowMealForm(true)} onEditPlan={() => setShowPlanForm(true)} />;
+      return <PlanView goalTitle={goalTitle} nutritionItems={liveNutrition} hasTarget={Boolean(summary?.target)} diet={client?.diet} onAddMeal={() => setShowMealForm(true)} onEditPlan={() => setShowPlanForm(true)} onEditDiet={() => setShowDietForm(true)} onDeleteDiet={handleDietDelete} />;
     }
 
     return (
@@ -701,6 +732,7 @@ function App() {
       </main>
       {showOnboarding && <OnboardingForm onSubmit={handleOnboardingSubmit} onClose={() => setShowOnboarding(false)} />}
       {showPlanForm && <PlanForm client={client} nutritionItems={liveNutrition} onSubmit={handlePlanSubmit} onClose={() => setShowPlanForm(false)} />}
+      {showDietForm && <DietForm diet={client?.diet} onSubmit={handleDietSubmit} onClose={() => setShowDietForm(false)} />}
       {analysisMeal && <MealAnalysisForm meal={analysisMeal.meal} initialItems={analysisMeal.items} onSubmit={handleAnalysisSubmit} onClose={() => setAnalysisMeal(null)} />}
       {showMealForm && <MealForm meal={editingMeal} onSubmit={handleMealSubmit} onClose={() => { setEditingMeal(null); setShowMealForm(false); }} />}
     </div>
