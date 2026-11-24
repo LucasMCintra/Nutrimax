@@ -55,6 +55,10 @@ class DietCreate(DietBase):
     client_id: Optional[int] = None
 
 
+class DietUpdate(DietBase):
+    pass
+
+
 class DietRead(DietBase):
     id: int
     client_id: int

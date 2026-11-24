@@ -20,6 +20,7 @@ from app.schemas import (
     ClientWithRelations,
     DietCreate,
     DietRead,
+    DietUpdate,
     GoalCreate,
     GoalRead,
     GoalUpdate,
@@ -172,6 +173,42 @@ def create_diet(
     if diet is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
     return diet
+
+
+@router.get("/{client_id}/diet", response_model=DietRead)
+def get_diet(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    diet = crud.get_diet(db, client_id, current_user.id)
+    if diet is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Diet not found")
+    return diet
+
+
+@router.put("/{client_id}/diet", response_model=DietRead)
+def update_diet(
+    client_id: int,
+    payload: DietUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    diet = crud.update_diet(db, client_id, payload, current_user.id)
+    if diet is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Diet not found")
+    return diet
+
+
+@router.delete("/{client_id}/diet", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_diet(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    if not crud.delete_diet(db, client_id, current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Diet not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{client_id}/meals", response_model=list[MealRead])

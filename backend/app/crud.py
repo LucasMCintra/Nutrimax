@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Client, Diet, Goal, Meal, MealAnalysis, MealAnalysisItem, MealItem, User
-from app.schemas import ClientCreate, ClientUpdate, DietCreate, GoalCreate, MealAnalysisItemBase, MealCreate, MealItemCreate, MealUpdate
+from app.schemas import ClientCreate, ClientUpdate, DietCreate, DietUpdate, GoalCreate, MealAnalysisItemBase, MealCreate, MealItemCreate, MealUpdate
 
 
 def get_client(db: Session, client_id: int, user_id: int | None = None) -> Client | None:
@@ -93,6 +93,33 @@ def create_diet(db: Session, diet: DietCreate, user_id: int) -> Diet | None:
     db.commit()
     db.refresh(db_diet)
     return db_diet
+
+
+def get_diet(db: Session, client_id: int, user_id: int) -> Diet | None:
+    return db.execute(
+        select(Diet)
+        .join(Client)
+        .where(Diet.client_id == client_id, Client.user_id == user_id)
+    ).scalar_one_or_none()
+
+
+def update_diet(db: Session, client_id: int, diet: DietUpdate, user_id: int) -> Diet | None:
+    db_diet = get_diet(db, client_id, user_id)
+    if db_diet is None:
+        return None
+    db_diet.description = diet.description
+    db.commit()
+    db.refresh(db_diet)
+    return db_diet
+
+
+def delete_diet(db: Session, client_id: int, user_id: int) -> bool:
+    db_diet = get_diet(db, client_id, user_id)
+    if db_diet is None:
+        return False
+    db.delete(db_diet)
+    db.commit()
+    return True
 
 
 def create_meal(db: Session, meal: MealCreate, user_id: int) -> Meal | None:
