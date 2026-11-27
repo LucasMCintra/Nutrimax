@@ -71,6 +71,12 @@ export function deleteMeal(token, clientId, mealId) {
   });
 }
 
+export function getMealAnalyses(token, clientId, mealId) {
+  return request(`/clients/${clientId}/meal/${mealId}/analysis`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 export function createMealAnalysis(token, clientId, mealId) {
   return request(`/clients/${clientId}/meal/${mealId}/analysis`, {
     method: "POST",

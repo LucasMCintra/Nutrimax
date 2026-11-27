@@ -10,6 +10,7 @@ import {
   getMeals,
   getProgress,
   getMealImage,
+  getMealAnalyses,
   createMealAnalysis,
   completeMealAnalysis,
   runMealAnalysis,
@@ -59,6 +60,23 @@ const navItems = [
 
 function formatNumber(value, maximumFractionDigits = 0) {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits }).format(Number(value) || 0);
+}
+
+function analysisStatusLabel(status) {
+  return {
+    pending: "Análise em andamento",
+    completed: "Análise pronta para revisão",
+    confirmed: "Análise confirmada",
+    failed: "Análise não concluída",
+  }[status] || "Análise ainda não iniciada";
+}
+
+function normalizeAnalysisError(error) {
+  const message = error?.message || "Não foi possível analisar a refeição.";
+  if (/quota|429|limit/i.test(message)) return "O limite de análises foi atingido. Tente novamente mais tarde.";
+  if (/timeout|503|502|unavailable/i.test(message)) return "O serviço de análise está temporariamente indisponível. Tente novamente em instantes.";
+  if (/image|imagem/i.test(message)) return "Adicione uma foto válida à refeição antes de analisar.";
+  return message;
 }
 
 function formatMealDate(value) {
@@ -199,7 +217,7 @@ function GoalBanner({ title, progress, mealCount }) {
   );
 }
 
-function MealsView({ meals, images, onAddMeal, onEditMeal, onDeleteMeal, onAnalyzeMeal, analysisLoading }) {
+function MealsView({ meals, images, analyses, onAddMeal, onEditMeal, onDeleteMeal, onAnalyzeMeal, analysisLoading }) {
   const sortedMeals = useMemo(
     () => [...meals].sort((first, second) => new Date(second.meal_date) - new Date(first.meal_date)),
     [meals],
@@ -231,7 +249,13 @@ function MealsView({ meals, images, onAddMeal, onEditMeal, onDeleteMeal, onAnaly
                 <span><b>{formatNumber(meal.fat, 1)}g</b> gorduras</span>
               </div>
               <div className="meal-row-actions">
-                <button type="button" className="meal-action meal-action-analysis" onClick={() => onAnalyzeMeal(meal)} disabled={analysisLoading} aria-label={`Analisar refeição de ${formatMealDate(meal.meal_date)}`}>{analysisLoading ? "Preparando..." : "Analisar"}</button>
+                {analyses[meal.id] && <span className={`analysis-status-note analysis-note-${analyses[meal.id].status}`} role="status">{analysisStatusLabel(analyses[meal.id].status)}</span>}
+                {(() => {
+                  const status = analyses[meal.id]?.status;
+                  const isRunning = analysisLoading === meal.id;
+                  const label = isRunning ? "Preparando..." : status === "pending" ? "Em análise" : status === "failed" ? "Tentar novamente" : status === "confirmed" ? "Confirmada" : status === "completed" ? "Revisar análise" : "Analisar";
+                  return <button type="button" className={`meal-action meal-action-analysis analysis-status-${status || "idle"}`} onClick={() => onAnalyzeMeal(meal)} disabled={isRunning || status === "pending" || status === "confirmed"} aria-label={`${label}: refeição de ${formatMealDate(meal.meal_date)}`}>{label}</button>;
+                })()}
                 <button type="button" className="meal-action" onClick={() => onEditMeal(meal)} aria-label={`Editar refeição de ${formatMealDate(meal.meal_date)}`}>Editar</button>
                 <button type="button" className="meal-action meal-action-danger" onClick={() => onDeleteMeal(meal)} aria-label={`Excluir refeição de ${formatMealDate(meal.meal_date)}`}>Excluir</button>
               </div>
@@ -348,7 +372,8 @@ function App() {
   const [showMealForm, setShowMealForm] = useState(false);
   const [editingMeal, setEditingMeal] = useState(null);
   const [analysisMeal, setAnalysisMeal] = useState(null);
-  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(null);
+  const [mealAnalyses, setMealAnalyses] = useState({});
   const [mealImages, setMealImages] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -387,6 +412,7 @@ function App() {
     setSummary(null);
     setProgress(null);
     setMeals([]);
+    setMealAnalyses({});
     setMealImages({});
   };
 
@@ -410,8 +436,12 @@ function App() {
     setSummary(dashboard);
     setProgress(progressData);
     setMeals(clientMeals);
-    const imageEntries = await Promise.all(clientMeals.map(async (meal) => [meal.id, await getMealImage(token, client.id, meal.id)]));
+    const [imageEntries, analysisEntries] = await Promise.all([
+      Promise.all(clientMeals.map(async (meal) => [meal.id, await getMealImage(token, client.id, meal.id)])),
+      Promise.all(clientMeals.map(async (meal) => [meal.id, (await getMealAnalyses(token, client.id, meal.id)).at(-1)])),
+    ]);
     setMealImages(Object.fromEntries(imageEntries.filter(([, image]) => image)));
+    setMealAnalyses(Object.fromEntries(analysisEntries.filter(([, analysis]) => analysis).map(([id, analysis]) => [id, analysis])));
   };
 
   const handleMealSubmit = async (data) => {
@@ -426,15 +456,17 @@ function App() {
 
   const handleAnalyzeMeal = async (meal) => {
     setError("");
-    setAnalysisLoading(true);
+    setAnalysisLoading(meal.id);
     try {
       const analysis = await createMealAnalysis(token, client.id, meal.id);
       const completed = await runMealAnalysis(token, client.id, meal.id, analysis.id);
+      setMealAnalyses((current) => ({ ...current, [meal.id]: completed }));
       setAnalysisMeal({ meal, analysisId: completed.id, items: completed.items });
     } catch (requestError) {
-      setError(requestError.message);
+      setError(normalizeAnalysisError(requestError));
+      setMealAnalyses((current) => ({ ...current, [meal.id]: { status: "failed", error_message: normalizeAnalysisError(requestError) } }));
     } finally {
-      setAnalysisLoading(false);
+      setAnalysisLoading(null);
     }
   };
 
@@ -565,8 +597,12 @@ function App() {
         setSummary(dashboard);
         setProgress(progressData);
         setMeals(clientMeals);
-        const imageEntries = await Promise.all(clientMeals.map(async (meal) => [meal.id, await getMealImage(token, clients[0].id, meal.id)]));
+        const [imageEntries, analysisEntries] = await Promise.all([
+          Promise.all(clientMeals.map(async (meal) => [meal.id, await getMealImage(token, clients[0].id, meal.id)])),
+          Promise.all(clientMeals.map(async (meal) => [meal.id, (await getMealAnalyses(token, clients[0].id, meal.id)).at(-1)])),
+        ]);
         setMealImages(Object.fromEntries(imageEntries.filter(([, image]) => image)));
+        setMealAnalyses(Object.fromEntries(analysisEntries.filter(([, analysis]) => analysis).map(([id, analysis]) => [id, analysis])));
       } catch (requestError) {
         clearToken();
         setToken(null);
@@ -601,6 +637,7 @@ function App() {
       return <MealsView
         meals={meals}
         images={mealImages}
+        analyses={mealAnalyses}
         onAddMeal={() => { setEditingMeal(null); setShowMealForm(true); }}
         onEditMeal={(meal) => { setEditingMeal(meal); setShowMealForm(true); }}
         onDeleteMeal={handleDeleteMeal}

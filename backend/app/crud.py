@@ -225,6 +225,13 @@ def delete_meal_item(db: Session, client_id: int, meal_id: int, item_id: int, us
     return True
 
 
+def get_meal_analyses(db: Session, client_id: int, meal_id: int, user_id: int) -> list[MealAnalysis] | None:
+    db_meal = get_meal(db, client_id, meal_id, user_id)
+    if db_meal is None:
+        return None
+    return list(db_meal.analyses)
+
+
 def get_meal_analysis(db: Session, client_id: int, meal_id: int, analysis_id: int, user_id: int) -> MealAnalysis | None:
     return db.execute(
         select(MealAnalysis)

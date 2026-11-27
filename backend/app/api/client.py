@@ -287,6 +287,19 @@ def update_meal(
     return meal
 
 
+@router.get("/{client_id}/meal/{meal_id}/analysis", response_model=list[MealAnalysisRead])
+def list_meal_analyses(
+    client_id: int,
+    meal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    analyses = crud.get_meal_analyses(db, client_id, meal_id, current_user.id)
+    if analyses is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    return analyses
+
+
 @router.post("/{client_id}/meal/{meal_id}/analysis", response_model=MealAnalysisRead, status_code=status.HTTP_201_CREATED)
 def create_meal_analysis(
     client_id: int,
