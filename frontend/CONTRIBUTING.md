@@ -1,0 +1,1 @@
+test(frontend): validar fluxo completo de análise nutricional
