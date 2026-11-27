@@ -15,9 +15,11 @@ class Settings(BaseSettings):
     upload_dir: str = "uploads/meals"
     google_ai_studio_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash"
     gemini_api_url: str = "https://generativelanguage.googleapis.com/v1beta/models"
     gemini_timeout_seconds: float = 60.0
+    gemini_max_retries: int = 2
+    gemini_retry_backoff_seconds: float = 2.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

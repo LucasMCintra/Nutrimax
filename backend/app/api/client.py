@@ -311,6 +311,8 @@ def run_meal_analysis(
     analysis = crud.get_meal_analysis(db, client_id, meal_id, analysis_id, current_user.id)
     if analysis is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
+    if analysis.status == "confirmed":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Analysis is already confirmed")
     meal = crud.get_meal(db, client_id, meal_id, current_user.id)
     image = get_meal_image_bytes(meal, current_user.id) if meal else None
     if image is None:
@@ -350,6 +352,11 @@ def confirm_meal_analysis(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    analysis = crud.get_meal_analysis(db, client_id, meal_id, analysis_id, current_user.id)
+    if analysis is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
+    if analysis.status == "confirmed":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Analysis is already confirmed")
     meal = crud.confirm_analysis(db, client_id, meal_id, analysis_id, payload.item_ids, current_user.id)
     if meal is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only a completed analysis can be confirmed")

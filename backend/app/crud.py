@@ -242,6 +242,20 @@ def get_meal_analysis(db: Session, client_id: int, meal_id: int, analysis_id: in
 def create_pending_analysis(db: Session, client_id: int, meal_id: int, user_id: int) -> MealAnalysis | None:
     if get_meal(db, client_id, meal_id, user_id) is None:
         return None
+    existing = db.execute(
+        select(MealAnalysis)
+        .join(Meal)
+        .join(Client)
+        .where(
+            MealAnalysis.meal_id == meal_id,
+            MealAnalysis.status == "pending",
+            Meal.client_id == client_id,
+            Client.user_id == user_id,
+        )
+        .order_by(MealAnalysis.created_at.desc())
+    ).scalars().first()
+    if existing is not None:
+        return existing
     analysis = MealAnalysis(meal_id=meal_id, status="pending", provider="manual")
     db.add(analysis)
     db.commit()

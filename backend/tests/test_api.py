@@ -237,6 +237,54 @@ def test_run_meal_analysis_marks_failed_without_image(client) -> None:
     assert response.status_code == 200
 
 
+def test_meal_analysis_creation_is_idempotent_for_pending_status(client) -> None:
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Análise idempotente"}, headers=headers)
+    meal = client.post(
+        "/api/v1/clients/1/meal", json={"meal_date": "2026-01-01"}, headers=headers
+    ).json()
+    first = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis", headers=headers
+    ).json()
+    second = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis", headers=headers
+    ).json()
+    assert second["id"] == first["id"]
+    assert second["status"] == "pending"
+
+
+def test_confirmed_analysis_cannot_run_or_confirm_again(client) -> None:
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Análise confirmada"}, headers=headers)
+    meal = client.post(
+        "/api/v1/clients/1/meal", json={"meal_date": "2026-01-01"}, headers=headers
+    ).json()
+    analysis = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis", headers=headers
+    ).json()
+    item = {"food_name": "Arroz", "quantity": 100, "unit": "g", "calories": 130}
+    client.put(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis/{analysis['id']}",
+        json=[item], headers=headers,
+    )
+    confirmed = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis/{analysis['id']}/confirm",
+        json={"item_ids": []}, headers=headers,
+    )
+    assert confirmed.status_code == 200
+
+    response = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis/{analysis['id']}/run",
+        headers=headers,
+    )
+    assert response.status_code == 409
+    response = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis/{analysis['id']}/confirm",
+        json={"item_ids": []}, headers=headers,
+    )
+    assert response.status_code == 409
+
+
 def test_meal_analysis_requires_confirmation_before_applying_items(client) -> None:
     headers = auth_headers(client)
     client.post("/api/v1/clients", json={"name": "Análise"}, headers=headers)

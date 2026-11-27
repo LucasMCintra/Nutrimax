@@ -58,6 +58,24 @@ def test_google_provider_rejects_missing_key() -> None:
         provider.analyze_meal(MealImage(data=b"image", mime_type="image/jpeg"))
 
 
+def test_google_provider_retries_temporary_failures() -> None:
+    attempts = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts.append(request)
+        if len(attempts) < 3:
+            return httpx.Response(503, json={"error": {"status": "UNAVAILABLE"}})
+        return httpx.Response(
+            200,
+            json={"candidates": [{"content": {"parts": [{"text": json.dumps({"items": []})}]}}]},
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    provider = GoogleAIStudioProvider(api_key="test-key", client=client, max_retries=2, retry_backoff_seconds=0)
+    assert provider.analyze_meal(MealImage(data=b"image", mime_type="image/jpeg")) == []
+    assert len(attempts) == 3
+
+
 def test_google_provider_rejects_invalid_response() -> None:
     client = httpx.Client(
         transport=httpx.MockTransport(

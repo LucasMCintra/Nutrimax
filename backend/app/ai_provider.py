@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 from dataclasses import dataclass
 from typing import Any, List, Optional, Protocol
 
@@ -33,12 +34,16 @@ class GoogleAIStudioProvider:
         model: Optional[str] = None,
         api_url: Optional[str] = None,
         timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
+        retry_backoff_seconds: Optional[float] = None,
         client: httpx.Client | None = None,
     ) -> None:
-        self.api_key = api_key or settings.google_ai_studio_api_key or settings.gemini_api_key
+        self.api_key = api_key if api_key is not None else (settings.google_ai_studio_api_key or settings.gemini_api_key)
         self.model = model or settings.gemini_model
         self.api_url = (api_url or settings.gemini_api_url).rstrip("/")
         self.timeout = timeout or settings.gemini_timeout_seconds
+        self.max_retries = max_retries if max_retries is not None else settings.gemini_max_retries
+        self.retry_backoff_seconds = retry_backoff_seconds if retry_backoff_seconds is not None else settings.gemini_retry_backoff_seconds
         self.client = client
 
     def analyze_meal(self, image: MealImage) -> List[MealAnalysisItemBase]:
@@ -98,15 +103,26 @@ class GoogleAIStudioProvider:
         url = f"{self.api_url}/{self.model}:generateContent"
         headers = {"x-goog-api-key": self.api_key, "Content-Type": "application/json"}
 
-        try:
-            if self.client is not None:
-                response = self.client.post(url, headers=headers, json=payload, timeout=self.timeout)
-            else:
-                with httpx.Client(timeout=self.timeout) as client:
-                    response = client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-        except httpx.HTTPError as error:
-            raise AnalysisProviderError("Google AI Studio request failed") from error
+        last_error = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                if self.client is not None:
+                    response = self.client.post(url, headers=headers, json=payload, timeout=self.timeout)
+                else:
+                    with httpx.Client(timeout=self.timeout) as client:
+                        response = client.post(url, headers=headers, json=payload)
+                if response.status_code not in {429, 500, 502, 503, 504}:
+                    response.raise_for_status()
+                    break
+                last_error = f"HTTP {response.status_code}"
+            except httpx.TimeoutException as error:
+                last_error = "timeout"
+            except httpx.HTTPError as error:
+                raise AnalysisProviderError("Google AI Studio request failed") from error
+            if attempt < self.max_retries:
+                time.sleep(self.retry_backoff_seconds * (attempt + 1))
+        else:
+            raise AnalysisProviderError(f"Google AI Studio temporarily unavailable ({last_error})")
 
         try:
             body = response.json()
