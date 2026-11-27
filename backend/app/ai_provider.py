@@ -15,6 +15,10 @@ from app.schemas import MealAnalysisItemBase
 class AnalysisProviderError(Exception):
     """Erro controlado ao consultar o provedor de análise."""
 
+    def __init__(self, message: str, code: str = "provider_error") -> None:
+        super().__init__(message)
+        self.code = code
+
 
 @dataclass(frozen=True)
 class MealImage:
@@ -48,7 +52,7 @@ class GoogleAIStudioProvider:
 
     def analyze_meal(self, image: MealImage) -> List[MealAnalysisItemBase]:
         if not self.api_key:
-            raise AnalysisProviderError("Google AI Studio is not configured")
+            raise AnalysisProviderError("Google AI Studio is not configured", code="provider_not_configured")
 
         payload = {
             "contents": [{
@@ -118,11 +122,12 @@ class GoogleAIStudioProvider:
             except httpx.TimeoutException as error:
                 last_error = "timeout"
             except httpx.HTTPError as error:
-                raise AnalysisProviderError("Google AI Studio request failed") from error
+                raise AnalysisProviderError("Google AI Studio request failed", code="provider_request_failed") from error
             if attempt < self.max_retries:
                 time.sleep(self.retry_backoff_seconds * (attempt + 1))
         else:
-            raise AnalysisProviderError(f"Google AI Studio temporarily unavailable ({last_error})")
+            code = "provider_timeout" if last_error == "timeout" else "provider_unavailable"
+            raise AnalysisProviderError(f"Google AI Studio temporarily unavailable ({last_error})", code=code)
 
         try:
             body = response.json()
@@ -131,4 +136,4 @@ class GoogleAIStudioProvider:
             items = parsed["items"]
             return [MealAnalysisItemBase.model_validate(item) for item in items]
         except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
-            raise AnalysisProviderError("Google AI Studio returned an invalid analysis") from error
+            raise AnalysisProviderError("Google AI Studio returned an invalid analysis", code="provider_invalid_response") from error

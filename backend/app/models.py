@@ -113,6 +113,7 @@ class MealAnalysis(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     provider: Mapped[str] = mapped_column(String(40), nullable=False, default="manual")
     error_message: Mapped[Optional[str]] = mapped_column(String(500))
+    error_code: Mapped[Optional[str]] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 

@@ -135,6 +135,7 @@ class MealAnalysisRead(BaseModel):
     status: Literal["pending", "completed", "failed", "confirmed"]
     provider: str
     error_message: Optional[str] = None
+    error_code: Optional[str] = None
     created_at: datetime
     completed_at: Optional[datetime] = None
     items: list[MealAnalysisItemRead] = []

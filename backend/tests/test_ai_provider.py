@@ -54,8 +54,9 @@ def test_google_provider_sends_image_and_parses_structured_response() -> None:
 
 def test_google_provider_rejects_missing_key() -> None:
     provider = GoogleAIStudioProvider(api_key="", model="gemini-test", client=httpx.Client())
-    with pytest.raises(AnalysisProviderError, match="not configured"):
+    with pytest.raises(AnalysisProviderError, match="not configured") as error:
         provider.analyze_meal(MealImage(data=b"image", mime_type="image/jpeg"))
+    assert error.value.code == "provider_not_configured"
 
 
 def test_google_provider_retries_temporary_failures() -> None:
@@ -86,5 +87,6 @@ def test_google_provider_rejects_invalid_response() -> None:
         )
     )
     provider = GoogleAIStudioProvider(api_key="test-key", client=client)
-    with pytest.raises(AnalysisProviderError, match="invalid analysis"):
+    with pytest.raises(AnalysisProviderError, match="invalid analysis") as error:
         provider.analyze_meal(MealImage(data=b"image", mime_type="image/jpeg"))
+    assert error.value.code == "provider_invalid_response"

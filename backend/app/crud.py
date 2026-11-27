@@ -270,9 +270,10 @@ def create_pending_analysis(db: Session, client_id: int, meal_id: int, user_id: 
     return analysis
 
 
-def fail_analysis(db: Session, analysis: MealAnalysis, message: str) -> MealAnalysis:
+def fail_analysis(db: Session, analysis: MealAnalysis, message: str, error_code: str = "provider_error") -> MealAnalysis:
     analysis.status = "failed"
     analysis.error_message = message[:500]
+    analysis.error_code = error_code[:50]
     db.commit()
     db.refresh(analysis)
     return analysis
@@ -295,6 +296,7 @@ def complete_analysis(
     analysis.status = "completed"
     analysis.provider = provider
     analysis.error_message = None
+    analysis.error_code = None
     from datetime import datetime, timezone
     analysis.completed_at = datetime.now(timezone.utc)
     db.commit()

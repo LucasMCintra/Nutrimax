@@ -17,9 +17,10 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-3.5-flash"
     gemini_api_url: str = "https://generativelanguage.googleapis.com/v1beta/models"
-    gemini_timeout_seconds: float = 60.0
-    gemini_max_retries: int = 2
+    gemini_timeout_seconds: float = 120.0
+    gemini_max_retries: int = 0
     gemini_retry_backoff_seconds: float = 2.0
+    max_image_size_bytes: int = 5 * 1024 * 1024
 
     model_config = SettingsConfigDict(
         env_file=".env",

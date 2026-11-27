@@ -11,3 +11,11 @@ def test_health_check() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_readiness_check() -> None:
+    response = client.get("/api/v1/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert "environment" in response.json()

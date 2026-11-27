@@ -329,7 +329,7 @@ def run_meal_analysis(
     meal = crud.get_meal(db, client_id, meal_id, current_user.id)
     image = get_meal_image_bytes(meal, current_user.id) if meal else None
     if image is None:
-        crud.fail_analysis(db, analysis, "Meal image not found")
+        crud.fail_analysis(db, analysis, "Meal image not found", error_code="image_required")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Meal image is required for analysis")
     try:
         items = GoogleAIStudioProvider().analyze_meal(MealImage(data=image[0], mime_type=image[1]))
@@ -337,8 +337,8 @@ def run_meal_analysis(
             db, client_id, meal_id, analysis_id, items, current_user.id, provider="google_ai_studio"
         )
     except AnalysisProviderError as error:
-        failed = crud.fail_analysis(db, analysis, str(error))
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=failed.error_message) from error
+        failed = crud.fail_analysis(db, analysis, str(error), error_code=error.code)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=failed.error_message, headers={"X-Analysis-Error-Code": error.code}) from error
 
 
 @router.put("/{client_id}/meal/{meal_id}/analysis/{analysis_id}", response_model=MealAnalysisRead)

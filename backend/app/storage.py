@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
+from app.core.config import settings
 from fastapi import HTTPException, UploadFile, status
 
 ALLOWED_IMAGE_TYPES = {
@@ -11,7 +12,7 @@ ALLOWED_IMAGE_TYPES = {
     "image/webp": ".webp",
 }
 CHUNK_SIZE = 1024 * 1024
-MAX_IMAGE_SIZE = 5 * 1024 * 1024
+MAX_IMAGE_SIZE = settings.max_image_size_bytes
 
 
 def ensure_upload_dir(upload_dir: Path) -> Path:
