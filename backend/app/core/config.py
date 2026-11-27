@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "postgresql://postgres:postgres@localhost:5432/nutrimax"
     api_v1_prefix: str = "/api/v1"
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    cors_origin_regex: str = r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3})(:\d+)?$"
     jwt_secret_key: str = "change-this-secret-in-production"
     access_token_expire_minutes: int = 30
     upload_dir: str = "uploads/meals"

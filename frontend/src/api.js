@@ -1,4 +1,7 @@
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api/v1";
+const browserApiUrl = typeof window !== "undefined"
+  ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
+  : "http://localhost:8000/api/v1";
+const API_URL = process.env.REACT_APP_API_URL || browserApiUrl;
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {

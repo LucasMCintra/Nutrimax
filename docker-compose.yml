@@ -38,7 +38,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      REACT_APP_API_URL: http://localhost:8000/api/v1
+      # O frontend calcula a API pelo host que abriu a página, funcionando no notebook e na rede local.
+      REACT_APP_API_URL: ""
     depends_on:
       - backend
 
