@@ -78,6 +78,7 @@ class Meal(Base):
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), nullable=False)
     meal_date: Mapped[date] = mapped_column(Date, nullable=False)
     image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    image_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     calories: Mapped[float] = mapped_column(Numeric(8, 2), default=0, server_default="0", nullable=False)
     protein: Mapped[float] = mapped_column(Numeric(8, 2), default=0, server_default="0", nullable=False)
     carbohydrates: Mapped[float] = mapped_column(Numeric(8, 2), default=0, server_default="0", nullable=False)

@@ -12,7 +12,13 @@ from app.api.auth import get_current_user
 from app.db import get_db
 from app.core.config import settings
 from app.models import User
-from app.storage import resolve_image, save_image
+from app.storage import (
+    count_user_uploads,
+    delete_image_files,
+    get_thumbnail_filename,
+    resolve_image,
+    save_image,
+)
 from app.schemas import (
     ClientCreate,
     ClientRead,
@@ -127,8 +133,15 @@ def delete_client(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
+    client = crud.get_client_by_id(db, client_id, current_user.id)
+    if client is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
+    images_to_delete = [m.image_url for m in client.meals if m.image_url]
     if not crud.delete_client(db, client_id, current_user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
+    user_upload_dir = get_upload_dir() / str(current_user.id)
+    for img_url in images_to_delete:
+        delete_image_files(user_upload_dir, img_url)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -250,8 +263,31 @@ def upload_meal_image(
     meal = crud.get_meal(db, client_id, meal_id, current_user.id)
     if meal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
-    filename, _ = save_image(image, get_upload_dir() / str(current_user.id))
-    meal.image_url = filename
+
+    user_upload_dir = get_upload_dir() / str(current_user.id)
+
+    # Check upload limit if this meal does not already have an image
+    if not meal.image_url and count_user_uploads(user_upload_dir) >= settings.max_uploads_per_user:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Upload limit of {settings.max_uploads_per_user} images reached for this user",
+        )
+
+    saved = save_image(image, user_upload_dir)
+
+    # Check if this is an exact duplicate re-upload of the current image
+    if meal.image_url and meal.image_hash == saved.image_hash:
+        existing_path = resolve_image(user_upload_dir, meal.image_url)
+        if existing_path and existing_path.exists():
+            delete_image_files(user_upload_dir, saved.filename)
+            return meal
+
+    # Clean up previous image file and thumbnail when replacing
+    if meal.image_url:
+        delete_image_files(user_upload_dir, meal.image_url)
+
+    meal.image_url = saved.filename
+    meal.image_hash = saved.image_hash
     db.commit()
     db.refresh(meal)
     return meal
@@ -261,16 +297,36 @@ def upload_meal_image(
 def get_meal_image(
     client_id: int,
     meal_id: int,
+    thumb: bool = False,
+    thumbnail: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     meal = crud.get_meal(db, client_id, meal_id, current_user.id)
     if meal is None or not meal.image_url:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal image not found")
-    image_path = resolve_image(get_upload_dir() / str(current_user.id), meal.image_url)
+
+    user_upload_dir = get_upload_dir() / str(current_user.id)
+    if thumb or thumbnail:
+        thumb_filename = get_thumbnail_filename(meal.image_url)
+        thumb_path = resolve_image(user_upload_dir, thumb_filename)
+        if thumb_path is not None:
+            return FileResponse(thumb_path)
+
+    image_path = resolve_image(user_upload_dir, meal.image_url)
     if image_path is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal image not found")
     return FileResponse(image_path)
+
+
+@router.get("/{client_id}/meal/{meal_id}/thumbnail")
+def get_meal_thumbnail(
+    client_id: int,
+    meal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return get_meal_image(client_id, meal_id, thumb=True, db=db, current_user=current_user)
 
 
 @router.put("/{client_id}/meal/{meal_id}", response_model=MealRead)
@@ -331,6 +387,13 @@ def run_meal_analysis(
     if image is None:
         crud.fail_analysis(db, analysis, "Meal image not found", error_code="image_required")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Meal image is required for analysis")
+    if analysis.status == "completed" and analysis.items:
+        return analysis
+    cached_items = crud.get_cached_analysis_items(db, meal)
+    if cached_items:
+        return crud.complete_analysis(
+            db, client_id, meal_id, analysis_id, cached_items, current_user.id, provider="cached"
+        )
     try:
         items = GoogleAIStudioProvider().analyze_meal(MealImage(data=image[0], mime_type=image[1]))
         return crud.complete_analysis(
@@ -438,6 +501,12 @@ def delete_meal(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
+    meal = crud.get_meal(db, client_id, meal_id, current_user.id)
+    if meal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    image_to_delete = meal.image_url
     if not crud.delete_meal(db, client_id, meal_id, current_user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    if image_to_delete:
+        delete_image_files(get_upload_dir() / str(current_user.id), image_to_delete)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

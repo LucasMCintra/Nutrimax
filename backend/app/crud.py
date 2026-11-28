@@ -330,6 +330,28 @@ def confirm_analysis(db: Session, client_id: int, meal_id: int, analysis_id: int
     return meal
 
 
+def get_cached_analysis_items(db: Session, meal: Meal) -> list[MealAnalysisItemBase] | None:
+    if not meal.analyses:
+        return None
+    for a in meal.analyses:
+        if a.status in ("completed", "confirmed") and a.items:
+            return [
+                MealAnalysisItemBase(
+                    food_name=item.food_name,
+                    quantity=float(item.quantity),
+                    unit=item.unit,
+                    calories=float(item.calories),
+                    protein=float(item.protein),
+                    carbohydrates=float(item.carbohydrates),
+                    fat=float(item.fat),
+                    confidence=float(item.confidence) if item.confidence is not None else None,
+                )
+                for item in a.items
+            ]
+    return None
+
+
+
 def get_meal_items(db: Session, client_id: int, meal_id: int, user_id: int) -> list[MealItem] | None:
     db_meal = get_meal(db, client_id, meal_id, user_id)
     if db_meal is None:

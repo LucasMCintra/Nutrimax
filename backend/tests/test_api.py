@@ -1,3 +1,14 @@
+import io
+from PIL import Image
+
+
+def make_test_image(format: str = "JPEG", size: tuple[int, int] = (100, 100)) -> bytes:
+    buf = io.BytesIO()
+    mode = "RGB" if format == "JPEG" else "RGBA"
+    Image.new(mode, size, color="green").save(buf, format=format)
+    return buf.getvalue()
+
+
 def auth_headers(client) -> dict[str, str]:
     client.post(
         "/api/v1/auth/register",
@@ -187,7 +198,7 @@ def test_run_meal_analysis_marks_provider_and_completed(client, monkeypatch) -> 
     ).json()
     image_path = client.post(
         f"/api/v1/clients/1/meal/{meal['id']}/image",
-        files={"image": ("meal.jpg", b"image", "image/jpeg")},
+        files={"image": ("meal.jpg", make_test_image("JPEG"), "image/jpeg")},
         headers=headers,
     )
     assert image_path.status_code == 200
@@ -438,7 +449,7 @@ def test_upload_and_get_meal_image(client) -> None:
         json={"meal_date": "2026-01-01", "calories": 500},
         headers=headers,
     ).json()
-    files = {"image": ("almoco.jpg", b"fake-jpeg-content", "image/jpeg")}
+    files = {"image": ("almoco.jpg", make_test_image("JPEG"), "image/jpeg")}
 
     response = client.post(
         f"/api/v1/clients/1/meal/{created['id']}/image",
@@ -454,7 +465,7 @@ def test_upload_and_get_meal_image(client) -> None:
         headers=headers,
     )
     assert response.status_code == 200
-    assert response.content == b"fake-jpeg-content"
+    assert len(response.content) > 0
     assert response.headers["content-type"] == "image/jpeg"
 
 
@@ -492,7 +503,7 @@ def test_users_cannot_access_each_others_meal_images(client) -> None:
     ).json()
     client.post(
         f"/api/v1/clients/1/meal/{created['id']}/image",
-        files={"image": ("privada.png", b"private-image", "image/png")},
+        files={"image": ("privada.png", make_test_image("PNG"), "image/png")},
         headers=owner_headers,
     )
 
@@ -585,6 +596,264 @@ def test_users_cannot_update_or_delete_each_others_meals(client) -> None:
     response = client.delete("/api/v1/clients/1/meal/1", headers=other_headers)
     assert response.status_code == 404
     assert len(client.get("/api/v1/clients/1/meals", headers=owner_headers).json()) == 1
+
+
+def test_upload_meal_image_validates_real_content_not_just_mime(client) -> None:
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Validação de conteúdo"}, headers=headers)
+    created = client.post(
+        "/api/v1/clients/1/meal",
+        json={"meal_date": "2026-01-01"},
+        headers=headers,
+    ).json()
+
+    response = client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("fake.jpg", b"this is pure text, not an image", "image/jpeg")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+    assert "not a valid image" in response.json()["detail"].lower()
+
+
+def test_upload_meal_image_replaces_old_file_and_thumbnail_on_replacement(client) -> None:
+    from pathlib import Path
+    from app.core.config import settings
+
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Substituição"}, headers=headers)
+    created = client.post(
+        "/api/v1/clients/1/meal",
+        json={"meal_date": "2026-01-01"},
+        headers=headers,
+    ).json()
+
+    res1 = client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("primeira.jpg", make_test_image("JPEG", size=(50, 50)), "image/jpeg")},
+        headers=headers,
+    )
+    assert res1.status_code == 200
+    filename1 = res1.json()["image_url"]
+
+    upload_dir = Path(settings.upload_dir) / "1"
+    file1_path = upload_dir / filename1
+    thumb1_path = upload_dir / f"thumb_{filename1}"
+    assert file1_path.exists()
+    assert thumb1_path.exists()
+
+    res2 = client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("segunda.png", make_test_image("PNG", size=(60, 60)), "image/png")},
+        headers=headers,
+    )
+    assert res2.status_code == 200
+    filename2 = res2.json()["image_url"]
+    assert filename2 != filename1
+
+    file2_path = upload_dir / filename2
+    thumb2_path = upload_dir / f"thumb_{filename2}"
+    assert file2_path.exists()
+    assert thumb2_path.exists()
+
+    assert not file1_path.exists()
+    assert not thumb1_path.exists()
+
+
+def test_delete_meal_cleans_up_image_and_thumbnail(client) -> None:
+    from pathlib import Path
+    from app.core.config import settings
+
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Limpeza de refeição"}, headers=headers)
+    created = client.post(
+        "/api/v1/clients/1/meal",
+        json={"meal_date": "2026-01-01"},
+        headers=headers,
+    ).json()
+
+    upload_res = client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("meal.jpg", make_test_image("JPEG"), "image/jpeg")},
+        headers=headers,
+    )
+    filename = upload_res.json()["image_url"]
+    upload_dir = Path(settings.upload_dir) / "1"
+    file_path = upload_dir / filename
+    thumb_path = upload_dir / f"thumb_{filename}"
+    assert file_path.exists()
+    assert thumb_path.exists()
+
+    del_res = client.delete(f"/api/v1/clients/1/meal/{created['id']}", headers=headers)
+    assert del_res.status_code == 204
+
+    assert not file_path.exists()
+    assert not thumb_path.exists()
+
+
+def test_upload_meal_image_resizes_large_images(client) -> None:
+    from pathlib import Path
+    from PIL import Image
+    from app.core.config import settings
+
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Redimensionamento"}, headers=headers)
+    created = client.post(
+        "/api/v1/clients/1/meal",
+        json={"meal_date": "2026-01-01"},
+        headers=headers,
+    ).json()
+
+    large_img = make_test_image("JPEG", size=(2500, 1500))
+    res = client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("grande.jpg", large_img, "image/jpeg")},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    filename = res.json()["image_url"]
+    upload_dir = Path(settings.upload_dir) / "1"
+
+    with Image.open(upload_dir / filename) as img:
+        assert img.width <= settings.max_image_dimension
+        assert img.height <= settings.max_image_dimension
+        assert img.width == 1920
+
+    with Image.open(upload_dir / f"thumb_{filename}") as thumb:
+        assert thumb.width <= settings.thumbnail_dimension
+        assert thumb.height <= settings.thumbnail_dimension
+
+
+def test_get_meal_thumbnail_endpoints(client) -> None:
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Thumbnails"}, headers=headers)
+    created = client.post(
+        "/api/v1/clients/1/meal",
+        json={"meal_date": "2026-01-01"},
+        headers=headers,
+    ).json()
+
+    client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("foto.jpg", make_test_image("JPEG", size=(500, 500)), "image/jpeg")},
+        headers=headers,
+    )
+
+    res_query = client.get(f"/api/v1/clients/1/meal/{created['id']}/image?thumb=true", headers=headers)
+    assert res_query.status_code == 200
+    assert res_query.headers["content-type"] == "image/jpeg"
+
+    res_endpoint = client.get(f"/api/v1/clients/1/meal/{created['id']}/thumbnail", headers=headers)
+    assert res_endpoint.status_code == 200
+    assert res_endpoint.headers["content-type"] == "image/jpeg"
+
+
+def test_upload_duplicate_image_avoids_duplicate_file(client) -> None:
+    from pathlib import Path
+    from app.core.config import settings
+
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Duplicatas"}, headers=headers)
+    created = client.post(
+        "/api/v1/clients/1/meal",
+        json={"meal_date": "2026-01-01"},
+        headers=headers,
+    ).json()
+
+    img_data = make_test_image("JPEG", size=(80, 80))
+    res1 = client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("foto.jpg", img_data, "image/jpeg")},
+        headers=headers,
+    )
+    assert res1.status_code == 200
+    fn1 = res1.json()["image_url"]
+    hash1 = res1.json()["image_hash"]
+    assert hash1 is not None
+
+    res2 = client.post(
+        f"/api/v1/clients/1/meal/{created['id']}/image",
+        files={"image": ("foto_outra.jpg", img_data, "image/jpeg")},
+        headers=headers,
+    )
+    assert res2.status_code == 200
+    fn2 = res2.json()["image_url"]
+    assert fn2 == fn1
+
+    upload_dir = Path(settings.upload_dir) / "1"
+    non_thumbs = [f for f in upload_dir.iterdir() if not f.name.startswith("thumb_")]
+    assert len(non_thumbs) == 1
+
+
+def test_run_meal_analysis_reuses_cached_results_to_avoid_duplicate_ai_calls(client, monkeypatch) -> None:
+    from app.ai_provider import GoogleAIStudioProvider
+    from app.schemas import MealAnalysisItemBase
+
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Cache IA"}, headers=headers)
+    meal = client.post(
+        "/api/v1/clients/1/meal", json={"meal_date": "2026-01-01"}, headers=headers
+    ).json()
+    client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/image",
+        files={"image": ("meal.jpg", make_test_image("JPEG"), "image/jpeg")},
+        headers=headers,
+    )
+    analysis = client.post(
+        f"/api/v1/clients/1/meal/{meal['id']}/analysis", headers=headers
+    ).json()
+
+    call_count = 0
+    def mock_analyze(self, image):
+        nonlocal call_count
+        call_count += 1
+        return [MealAnalysisItemBase(food_name="Arroz", quantity=100, unit="g", calories=130)]
+
+    monkeypatch.setattr(GoogleAIStudioProvider, "analyze_meal", mock_analyze)
+
+    res1 = client.post(f"/api/v1/clients/1/meal/{meal['id']}/analysis/{analysis['id']}/run", headers=headers)
+    assert res1.status_code == 200
+    assert res1.json()["provider"] == "google_ai_studio"
+    assert call_count == 1
+
+    res2 = client.post(f"/api/v1/clients/1/meal/{meal['id']}/analysis/{analysis['id']}/run", headers=headers)
+    assert res2.status_code == 200
+    assert call_count == 1
+
+
+def test_user_upload_limit(client, monkeypatch) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "max_uploads_per_user", 2)
+    headers = auth_headers(client)
+    client.post("/api/v1/clients", json={"name": "Limite"}, headers=headers)
+
+    meal1 = client.post("/api/v1/clients/1/meal", json={"meal_date": "2026-01-01"}, headers=headers).json()
+    meal2 = client.post("/api/v1/clients/1/meal", json={"meal_date": "2026-01-02"}, headers=headers).json()
+    meal3 = client.post("/api/v1/clients/1/meal", json={"meal_date": "2026-01-03"}, headers=headers).json()
+
+    r1 = client.post(
+        f"/api/v1/clients/1/meal/{meal1['id']}/image",
+        files={"image": ("1.jpg", make_test_image("JPEG", (10, 10)), "image/jpeg")},
+        headers=headers,
+    )
+    assert r1.status_code == 200
+
+    r2 = client.post(
+        f"/api/v1/clients/1/meal/{meal2['id']}/image",
+        files={"image": ("2.jpg", make_test_image("JPEG", (20, 20)), "image/jpeg")},
+        headers=headers,
+    )
+    assert r2.status_code == 200
+
+    r3 = client.post(
+        f"/api/v1/clients/1/meal/{meal3['id']}/image",
+        files={"image": ("3.jpg", make_test_image("JPEG", (30, 30)), "image/jpeg")},
+        headers=headers,
+    )
+    assert r3.status_code == 429
+    assert "upload limit" in r3.json()["detail"].lower()
+
 
 
 def test_get_client_with_relations(client) -> None:

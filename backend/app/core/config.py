@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     gemini_max_retries: int = 0
     gemini_retry_backoff_seconds: float = 2.0
     max_image_size_bytes: int = 5 * 1024 * 1024
+    max_image_dimension: int = 1920
+    thumbnail_dimension: int = 250
+    max_uploads_per_user: int = 50
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -85,6 +85,7 @@ class NutritionTargetRead(NutritionTargetBase):
 class MealBase(BaseModel):
     meal_date: date
     image_url: Optional[str] = Field(default=None, max_length=500)
+    image_hash: Optional[str] = Field(default=None, max_length=64)
     calories: float = Field(default=0, ge=0)
     protein: float = Field(default=0, ge=0)
     carbohydrates: float = Field(default=0, ge=0)
